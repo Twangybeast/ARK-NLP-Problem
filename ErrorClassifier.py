@@ -76,6 +76,7 @@ def find_all_delta_from_tokens(t1, t2):
     return t1[starting_match:len(t1) - ending_match], t2[starting_match:len(t2) - ending_match], start, end
 
 # TODO Use previous function instead
+
 def find_delta_from_tokens(t1, t2):
     starting_match = 0
     for i in range(min(len(t1), len(t2))):
