@@ -101,7 +101,6 @@ def load_words_list():
             res.update(map(lambda x: x.lower(), fin.read().split()))
     return res
 
-
 def is_num(word):
     try:
         val = int(word)

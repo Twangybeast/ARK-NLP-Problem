@@ -31,22 +31,22 @@ def eval_largest(n1, n2):
         return 1
 
 
-def solve_ARRANGE(p1, p2):
+def solve_arrange(p1, p2):
     return int(random.random() * 2)  # default to random
 
 
 # Addition/Removal are symmetrical operations. In the testing dataset, they should be treated the same
-def solve_ADD(p1, p2):
-    return 1 - solve_REMOVE(p2, p1)
+def solve_add(p1, p2):
+    return 1 - solve_remove(p2, p1)
 
 
-def solve_REMOVE(p1, p2):
+def solve_remove(p1, p2):
     # default behavior, return the larger one (removal of tokens from larger one is common)
     t1, t2 = tokenize(p1, p2)
     return eval_largest(len(t1), len(t2))
 
 
-def solve_TYPO(p1, p2):
+def solve_typo(p1, p2):
     # Find the delta
     t1, t2 = tokenize(p1, p2)
     d1, d2 = ErrorClassifier.find_delta_from_tokens(t1, t2)
@@ -125,7 +125,7 @@ def solve_REPLACE(p1, p2):
 
 
 def solve(p1, p2, error_type):
-    return globals()['solve_' + error_type](p1, p2)
+    return globals()['solve_' + error_type.lower()](p1, p2)
 
 
 prediction_freq = [0, 0]
@@ -175,3 +175,4 @@ with open('train.txt', encoding='utf-8') as fin:
 print(prediction_freq)
 print(error_correct)
 print(error_freq)
+print(asdf)
