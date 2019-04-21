@@ -173,26 +173,76 @@ def classify_error_labeled(part1="", part2="", tokens1 = None, tokens2 = None):
 
 ERROR_TYPES = ['ARRANGE', 'ADD', 'REMOVE', 'TYPO', 'REPLACE']
 
+def generator_file_tokenizer(file_name, use_line_num=lambda n: True, encoding=None):
+    def parts_yielder():
+        with open(file_name, encoding=encoding) as file:
+            progress = 0
+            for line in file:
+                progress += 1
+                if not use_line_num(progress):
+                    continue
+                line = line.strip()
+                line = unicodedata.normalize('NFKD', line)
+                p1, p2 = line.split('\t')
+                yield p1
+                yield p2
+    docs = nlp_tokenizer.pipe(parts_yielder(), batch_size=1000)
+    iterator = iter(docs)
+    while True:
+        try:
+            tokens1 = next(iterator)
+        except StopIteration:
+            break
+        try:
+            tokens2 = next(iterator)
+        except StopIteration:
+            assert False
+        yield tokens1, tokens2
+
+
+
+
 if __name__ == '__main__':
     error_frequency = {k: 0 for k in ERROR_TYPES}
 
+    progress = 0
+    start_time = time.time()
+    words_processed = 0
+    for tokens1, tokens2 in generator_file_tokenizer('train.txt', encoding='utf-8'):
+        progress += 1
+        error = classify_error_labeled(tokens1=tokens1, tokens2=tokens2)
+        error_frequency[error] += 1
+
+        # Display progression in number of samples processed, use random to avoid too many (slow) interactions w/
+        # console
+        words_processed += len(tokens1) + len(tokens2)
+        if progress % 100 == 0:
+            print('\rProgress: [{}] Word Processed: [{}] Words per second: [{}] Lines per second: [{}]'
+                  .format(progress, words_processed, words_processed / (time.time() - start_time),
+                          (progress / (time.time() - start_time))), end='')
+    ''' Old code
     with open('train.txt', encoding='utf-8') as fin:
         progress = 0
+        start_time = time.time()
+        words_processed = 0
         for line in fin:
+            progress += 1
             l = line.strip()
             l = unicodedata.normalize('NFKD', l)
             p1, p2 = l.split('\t')
             error = classify_error_labeled(p1, p2)
             error_frequency[error] += 1
-            # learn_words(p1) # Now unnecessary, all the words are already learned in the file
 
-            #Display progression in number of samples processed, use random to avoid too many (slow) interactions w/ console
-            progress += 1
-            if random.random() < 0.001:
-                print('\rProgress: [{0}]'.format(progress), end='')
+            # Display progression in number of samples processed, use random to avoid too many (slow) interactions w/
+            # console
+            words_processed += len(p1.split()) + len(p2.split())
+            if progress % 100 == 0:
+                print('\rProgress: [{}] Word Processed: [{}] Words per second: [{}] Lines per second: [{}]'
+                      .format(progress, words_processed,
+                              words_processed / (time.time() - start_time), (progress / (time.time() - start_time))),
+                      end='')
+    '''
     print()
     print(error_frequency)
-    # print(min_lev)
-    # print(max_lev_r)
 
     print('done')

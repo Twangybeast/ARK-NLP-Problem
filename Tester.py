@@ -168,9 +168,11 @@ with open('train.txt', encoding='utf-8') as fin:
         # Display progression in number of samples processed, use random to avoid too many (slow) interactions w/
         # console
         words_processed += len(p1.split()) + len(p2.split())
-        if random.random() < 0.01:
-            print('\rProgress: [{0}] Word Processed: [{1}] Words per second: [{2}]'
-                  .format(progress, words_processed, (words_processed / (time.time() - start_time))), end='')
+        if progress % 100 == 0:
+            print('\rProgress: [{}] Word Processed: [{}] Words per second: [{}] Lines per second: [{}]'
+                  .format(progress, words_processed, \
+                          words_processed / (time.time() - start_time), (progress / (time.time() - start_time)))
+                  , end='')
 
 print(prediction_freq)
 print(error_correct)

@@ -4,8 +4,13 @@ import random
 import time
 import unicodedata
 
-import en_core_web_lg
-nlp = en_core_web_lg.load()
+# import en_core_web_lg
+# nlp = en_core_web_lg.load()
+from functools import reduce
+
+import tensorflow as tf
+from tensorflow import keras
+tf.enable_eager_execution()
 
 import ErrorClassifier
 from ErrorClassifier import ERROR_TYPES, tokenize_pure_words
@@ -13,6 +18,9 @@ from ErrorClassifier import ERROR_TYPES, tokenize_pure_words
 # Only can learn when the learned_words.txt file is empty
 ENABLE_LEARN_WORDS = False
 ENABLE_LEARN_EMBEDDING = True
+ENABLE_TRAIN_REPLACE_NN = True
+
+TRAIN_FROM_DISK_REPLACE = False
 
 learned_words = set()
 
@@ -63,18 +71,45 @@ def load_tags_to_id():
 
 tags_to_id = load_tags_to_id()
 
-def prepare_tags_for_nn(p1, p2, t1, t2):
+# For the REPLACE neural network
+train_start = []
+train_end = []
+train_delta1 = []
+train_delta2 = []
 
-    if len() == 0:
-        print(t1)
-        print(t2)
-        print(p1)
-        print(p2)
-    id1 = tags_to_id[d1[0]]
-    id2 = tags_to_id[d2[0]]
+test1 = 0
+test2= 0
+def prepare_tags_for_nn(part1, part2, tags1, tags2):
+    global test1, test2
+    tokens1, tokens2 = ErrorClassifier.tokenize(part1, part2)
+    tags1 = tags1.split()
+    tags2 = tags2.split()
+    assert len(tokens1) == len(tags1)
+    assert len(tokens2) == len(tags2)
 
-    ids1 = map(lambda tag: tags_to_id[tag], t1.split())
-    ids2 = map(lambda tag: tags_to_id[tag], t2.split())
+    tag_map = {}
+    for i in range(len(tokens1)):
+        tag_map[tokens1[i]] = tags1[i]
+    for i in range(len(tokens2)):
+        tag_map[tokens2[i]] = tags2[i]
+
+    delta1, delta2, start, end = ErrorClassifier.find_all_delta_from_tokens(tokens1, tokens2)
+
+    ids_d1 = list(map(lambda token: tags_to_id[tag_map[token]], delta1))
+    ids_d2 = list(map(lambda token: tags_to_id[tag_map[token]], delta2))
+    ids_st = list(map(lambda token: tags_to_id[tag_map[token]], start))   # start ids
+    ids_en = list(map(lambda token: tags_to_id[tag_map[token]], end))     # end ids
+
+    if ids_d1[0] == ids_d2[0]:
+        test1 += 1
+        # TODO resolve case in which both have same placeholder, use vector similarities, or none
+        # TODO count it
+    else:
+        test2 += 1
+        train_start.append(ids_st)
+        train_end.append(ids_en)
+        train_delta1.append(ids_d1)
+        train_delta2.append(ids_d2)
 
 
 
@@ -84,7 +119,7 @@ def train(p1, p2, error_type, t1, t2):
     learn_word_frequencies(p1)  # only train frequencies on first part, second part is corrupted text
     if ENABLE_LEARN_WORDS:
         learn_words(p1)
-    if error_type == 'REPLACE':
+    if error_type == 'REPLACE' and ENABLE_TRAIN_REPLACE_NN and not TRAIN_FROM_DISK_REPLACE:
         prepare_tags_for_nn(p1, p2, t1, t2)
 
 
@@ -101,9 +136,11 @@ def learn_embedding(part):
 if __name__ == '__main__':
     TESTING_RANGE = (900000, 1000000)
     # .spacy.txt is a pre-processed file containing a tokenized
-    with open('train.txt', encoding='utf-8') as file, open('train.spacy.txt') as ftags:
-        test = {}
+    FILE_NAME = 'train'
+    with open(FILE_NAME+'.txt', encoding='utf-8') as file, open(FILE_NAME + '.spacy.txt') as ftags:
         progress = 0
+        start_time = time.time()
+        words_processed = 0
         for line in file:
             line_tag = ftags.readline().strip()
             progress += 1
@@ -114,27 +151,119 @@ if __name__ == '__main__':
             line = unicodedata.normalize('NFKD', line)
 
             p1, p2 = line.split('\t')
-            t1, t2 = line_tag.split('\t')
+            try:
+                t1, t2 = line_tag.split('\t')
+            except:
+                print(p1)
+                print(p2)
+                print(line_tag)
+                quit()
 
             error_type = ErrorClassifier.classify_error_labeled(p1, p2)
             train(p1, p2, error_type, t1, t2)
 
-
-            if error_type == 'REPLACE':
-                d1, d2 = ErrorClassifier.find_delta_from_tokens(t1.split(), t2.split())
-                length = max(len(d1), len(d2))
-                if length not in test:
-                    test[length] = 1
-                else:
-                    test[length] += 1
-
             # Display progression in number of samples processed, use random to avoid too many (slow) interactions w/
             # console
-            if random.random() < 0.001:
-                print('\rProgress: [{0}]'.format(progress), end='')
-        print(test)
+            words_processed += len(p1.split()) + len(p2.split())
+            if progress % 100 == 0:
+                print('\rProgress: [{}] Word Processed: [{}] Words per second: [{}] Lines per second: [{}]'
+                      .format(progress, words_processed,
+                              words_processed / (time.time() - start_time), (progress / (time.time() - start_time)))
+                      , end='')
     if ENABLE_LEARN_WORDS:
         save_learned_words()
     else:
         assert len(learned_words) == 0
     save_word_frequencies()
+    print(test1, test2)
+    if ENABLE_TRAIN_REPLACE_NN:
+        # create the dataset
+
+        max_start = 0
+        max_end = 0
+        samples = 0
+        if not TRAIN_FROM_DISK_REPLACE:
+            # saves the data to a file
+            assert len(train_delta1) == len(train_delta2) == len(train_start) == len(train_end)
+            max_start   = len(max(train_start, key=len))
+            max_end     = len(max(train_end, key=len))
+            samples = len(train_delta1)
+            with open(FILE_NAME+'.replace.txt', 'x') as file_replace:
+                file_replace.write('{} {} {}\n'.format(max_start, max_end, samples))
+                for i in range(samples):
+                    file_replace.write(' '.join(map(str, train_start[i]))  + '\t')
+                    file_replace.write(' '.join(map(str, train_end[i]))    + '\t')
+                    file_replace.write(str(train_delta1[i][0]) + '\t')
+                    file_replace.write(str(train_delta2[i][0]) + '\n')
+
+
+        def replace_nn_generator():
+            with open(FILE_NAME+'.replace.txt') as file_replace:
+                file_replace.readline()
+                for replace_line in file_replace:
+                    start, end, delta1, delta2 = replace_line.rstrip().split('\t')
+                    start = list(map(int, start.split()))
+                    end = list(map(int, end.split()))
+                    delta1 = [int(delta1)]
+                    delta2 = [int(delta2)]
+
+                    [start] = keras.preprocessing.sequence.pad_sequences([start], maxlen=max_start)
+                    [end]   = keras.preprocessing.sequence.pad_sequences([end]  , maxlen=max_end)
+
+                    yield {'start': start, 'end': end, 'delta': delta1}, 1.
+                    yield {'start': start, 'end': end, 'delta': delta2}, 0.
+
+
+        with open(FILE_NAME+'.replace.txt') as file_replace:
+            max_start, max_end, samples = list(map(int, file_replace.readline().strip().split()))
+        dataset = tf.data.Dataset.from_generator(replace_nn_generator,
+                 ({'start':tf.int32, 'end':tf.int32, 'delta': tf.int32}, tf.float32),
+                 ({'start':tf.TensorShape([None,]), 'end':tf.TensorShape([None,]), 'delta': tf.TensorShape([1,])},
+                    tf.TensorShape([])))
+
+
+        dataset = dataset.repeat()
+        dataset = dataset.shuffle(1000)
+
+        validation_dataset = dataset.take(int(samples * 0.1)) # 10% used for validation
+        validation_dataset = validation_dataset.batch(int(samples * 0.1))
+
+        BATCH_SIZE = 10
+        dataset = dataset.batch(BATCH_SIZE)
+
+        # Create the model
+        input_start = tf.keras.layers.Input(shape=(None,), dtype=tf.int32, name='start')
+        input_end   = tf.keras.layers.Input(shape=(None,), dtype=tf.int32, name='end')
+        input_delta = tf.keras.layers.Input(shape=(1,), dtype=tf.int32, name='delta')
+
+
+        # input vocab is only 56 words
+        embedding = tf.keras.layers.Embedding(output_dim = 20, input_dim=len(tags_to_id))
+
+        x_s = embedding(input_start)
+        x_e = embedding(input_end)
+        x_d = embedding(input_delta)
+
+        x_s = tf.keras.layers.LSTM(10)(x_s)
+        x_e = tf.keras.layers.LSTM(10, go_backwards=False)(x_e) # converge such that last input is closest to the delta
+
+        x_se = tf.keras.layers.concatenate([x_s, x_e])
+        x_se = tf.keras.layers.Dense(10)(x_se)
+
+        x_d = tf.keras.layers.Flatten()(x_d)
+
+        x = tf.keras.layers.concatenate([x_se, x_d])
+        x = tf.keras.layers.Dense(10)(x)
+        output = tf.keras.layers.Dense(1)(x)
+
+        model = tf.keras.Model(inputs=[input_start, input_end, input_delta], outputs=output)
+        model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+
+        print(model.summary())
+        print('-------------')
+        print(dataset)
+        print(dataset.output_shapes)
+        print(dataset.output_types)
+
+        model.fit(dataset, steps_per_epoch=samples, epochs=20, verbose=2, validation_data=validation_dataset, validation_steps=1)
+
