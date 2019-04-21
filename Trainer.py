@@ -70,6 +70,8 @@ def prepare_tags_for_nn(p1, p2, t1, t2):
         print(t2)
         print(p1)
         print(p2)
+    id1 = tags_to_id[d1[0]]
+    id2 = tags_to_id[d2[0]]
 
     ids1 = map(lambda tag: tags_to_id[tag], t1.split())
     ids2 = map(lambda tag: tags_to_id[tag], t2.split())

@@ -2,7 +2,7 @@ import time
 import unicodedata
 
 import spacy
-nlp = spacy.load('en_core_web_lg', disable=['tagger', 'parser', 'ner'])
+nlp = spacy.load('en_core_web_lg', disable=['parser', 'ner'])
 
 
 # Converts the entire text file into a spacy file

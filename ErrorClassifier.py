@@ -4,13 +4,15 @@ import re
 import time
 import unicodedata
 from enum import Enum
+from functools import reduce
 
 import Levenshtein
-
+import spacy
+nlp_tokenizer = spacy.load('en_core_web_lg', disable=['tagger', 'parser', 'ner'])
 
 def tokenize(p1, p2):
-    t1 = p1.split()
-    t2 = p2.split()
+    t1 = nlp_tokenizer(p1)
+    t2 = nlp_tokenizer(p2)
     return t1, t2
 
 def tokenize_pure_words(part):
@@ -23,23 +25,23 @@ def generate_word_set(tokens):
     s = set()
     for t in tokens:
         i = 0
-        while t + str(i) in s:
+        while str(t) + str(i) in s:
             i += 1
-        s.add(t + str(i))
+        s.add(str(t) + str(i))
     return s
 
 
 def generate_word_dict(tokens):
     d = {}
     for t in tokens:
-        if t in d:
-            d[t] += 1
+        if str(t) in d:
+            d[str(t)] += 1
         else:
-            d[t] = 1
+            d[str(t)] = 1
     return d
 
 
-def find_word_delta(d1, d2):
+def dictionary_difference(d1, d2):
     d = {}
     for k in d1:
         v = d1[k]
@@ -59,38 +61,24 @@ def freq_to_list(d):
 def find_all_delta_from_tokens(t1, t2):
     starting_match = 0
     for i in range(min(len(t1), len(t2))):
-        if t1[i] != t2[i]:
+        if str(t1[i]) != str(t2[i]):
             starting_match = i
             break
 
     ending_match = 0
     for i in range(min(len(t1), len(t2))):
-        if t1[-i - 1] != t2[-i - 1]:
+        if str(t1[-i - 1]) != str(t2[-i - 1]):
             ending_match = i
             break
 
     start = t1[:starting_match];
     end = t1[len(t1) - ending_match:]
-    assert start == t2[:starting_match]
-    assert end == t2[len(t2) - ending_match:]
     return t1[starting_match:len(t1) - ending_match], t2[starting_match:len(t2) - ending_match], start, end
 
-# TODO Use previous function instead
 
 def find_delta_from_tokens(t1, t2):
-    starting_match = 0
-    for i in range(min(len(t1), len(t2))):
-        if t1[i] != t2[i]:
-            starting_match = i
-            break
-
-    ending_match = 0
-    for i in range(min(len(t1), len(t2))):
-        if t1[-i - 1] != t2[-i - 1]:
-            ending_match = i
-            break
-
-    return t1[starting_match:len(t1) - ending_match], t2[starting_match:len(t2) - ending_match]
+    delta1, delta2, _, _ = find_all_delta_from_tokens(t1, t2)
+    return delta1, delta2
 
 
 def load_words_list():
@@ -125,12 +113,7 @@ def all_in_words_list(part):
     return True
 
 
-unknown_words = 0
-min_lev = 90
-max_lev_r = 0
-magic = 0
-
-def classify_error_labeled(part1, part2):
+def classify_error_labeled(part1="", part2="", tokens1 = None, tokens2 = None):
     global words_list
     # replacement, misspelling/space shift, rearrangement, add, remove
     # addition - p1 is a subset of p2
@@ -138,62 +121,47 @@ def classify_error_labeled(part1, part2):
     # rearrangement - p1 is same set as p2
     # replacement - delta that has large levenshtein
     # mispelling - delta with small levenshtein
-    t1 , t2 = tokenize(part1, part2)
+    if tokens1 is None or tokens2 is None:
+        tokens1 , tokens2 = tokenize(part1, part2)
+    else:
+        part1 = str(tokens1)
+        part2 = str(tokens2)
 
-    global magic
-    if t1 == t2:
-        magic += 1
+    dict1 = generate_word_dict(tokens1)
+    dict2 = generate_word_dict(tokens2)
 
-    set1 = generate_word_set(t1)
-    set2 = generate_word_set(t2)
+    # Inefficient
+    # size1 = reduce(lambda total, k: total + dict1[k], dict1, 0)
+    # size2 = reduce(lambda total, k: total + dict2[k], dict2, 0)
+
+    size1 = len(tokens1)
+    size2 = len(tokens2)
 
     # Only can have one type of error (supposedly)
-    if len(set1) == len(set2):
+    if size1 == size2:
         # possible rearrangement
-        res = set1.difference(set2)
+        res = dictionary_difference(dict1, dict2)
         if len(res) == 0:
             return 'ARRANGE'
-    elif len(set1) < len(set2):
+    elif size1 < size2:
         # possible addition
-        res = set1.difference(set2)
+        res = dictionary_difference(dict1, dict2)
         if len(res) == 0:
             return 'ADD'
     else:
         # possible removal
-        res = set2.difference(set1)
+        res = dictionary_difference(dict2, dict1)
         if len(res) == 0:
             return 'REMOVE'
 
-    # Old code used to explore the data
-    # Must identify type of replacement
-    # d1 = generate_word_dict(t1)
-    # d2 = generate_word_dict(t2)
+    d1, d2 = find_delta_from_tokens(tokens1, tokens2)
 
-    # delta1 = {k: d1[k] for k in set(d1) - set(d2)}
-    # delta2 = {k: d2[k] for k in set(d2) - set(d1)}
+    delta1 = str(d1)
+    delta2 = str(d2)
 
-    # delta1 = find_word_delta(d1, d2)
-    # delta2 = find_word_delta(d2, d1)
+    r = Levenshtein.ratio(delta1, delta2)
+    d = Levenshtein.distance(delta1, delta2)
 
-    D1, D2 = find_delta_from_tokens(t1, t2)
-
-    D1 = ' '.join(D1)
-    D2 = ' '.join(D2)
-
-    r = Levenshtein.ratio(D1, D2)
-    d = Levenshtein.distance(D1, D2)
-
-    global unknown_words, min_lev, max_lev_r
-    if d > 2 and (not all_in_words_list(D1) or not all_in_words_list(D2)):
-        # print(D1)
-        # print(D2)
-        # print(Levenshtein.ratio(D1,D2))
-        # print(Levenshtein.distance(D1, D2))
-        # max_lev_r = max(max_lev_r, r)
-        # if  0.7 < r <0.8:
-        #    print(D1, D2)
-        # min_lev = min(min_lev, d)
-        unknown_words += 1
     if d <= 2 or r > 0.8:
         # Consider as a typo
 
@@ -223,9 +191,7 @@ if __name__ == '__main__':
             if random.random() < 0.001:
                 print('\rProgress: [{0}]'.format(progress), end='')
     print()
-    print(unknown_words)
     print(error_frequency)
-    print(magic)
     # print(min_lev)
     # print(max_lev_r)
 

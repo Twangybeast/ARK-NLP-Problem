@@ -31,28 +31,27 @@ def eval_largest(n1, n2):
         return 1
 
 
-def solve_arrange(p1, p2):
+def solve_arrange(tokens1, tokens2):
     return int(random.random() * 2)  # default to random
 
 
 # Addition/Removal are symmetrical operations. In the testing dataset, they should be treated the same
-def solve_add(p1, p2):
-    return 1 - solve_remove(p2, p1)
+def solve_add(tokens1, tokens2):
+    return 1 - solve_remove(tokens2, tokens1)
 
 
-def solve_remove(p1, p2):
+def solve_remove(tokens1, tokens2):
     # default behavior, return the larger one (removal of tokens from larger one is common)
-    t1, t2 = tokenize(p1, p2)
-    return eval_largest(len(t1), len(t2))
+    return 0 # functionally identical to the commented out version
+    # return eval_largest(len(tokens1), len(tokens2))
 
 
-def solve_typo(p1, p2):
+def solve_typo(tokens1, tokens2):
     # Find the delta
-    t1, t2 = tokenize(p1, p2)
-    d1, d2 = ErrorClassifier.find_delta_from_tokens(t1, t2)
+    d1, d2 = ErrorClassifier.find_delta_from_tokens(tokens1, tokens2)
 
-    w1 = tokenize_pure_words(' '.join(d1))
-    w2 = tokenize_pure_words(' '.join(d2))
+    w1 = tokenize_pure_words(str(d1))
+    w2 = tokenize_pure_words(str(d2))
 
     def calc_freq_sum(words):
         total = 0
@@ -97,17 +96,15 @@ def evaluate_average_delta_similarity(delta_tokens, starting_match, ending_match
     return total / size_d, check_all_has_vectors(d_tokens)
 
 asdf = [[0, 0, 0, 0], [0,0,0,0]]
-def solve_REPLACE(p1, p2):
+def solve_replace(tokens1, tokens2):
     # Simplest method, simply compare word similarity vectors
     # Find the delta
-    t1, t2 = tokenize(p1, p2)
+    d1, d2, s1, s2 = ErrorClassifier.find_all_delta_from_tokens(tokens1, tokens2)
 
-    d1, d2, s1, s2 = ErrorClassifier.find_all_delta_from_tokens(t1, t2)
-
-    d1 = ' '.join(d1)
-    d2 = ' '.join(d2)
-    s1 = ' '.join(s1)
-    s2 = ' '.join(s2)
+    # d1 = ' '.join(d1)
+    # d2 = ' '.join(d2)
+    # s1 = ' '.join(s1)
+    # s2 = ' '.join(s2)
 
     # in_d1 = ErrorClassifier.all_in_words_list(d1)
     # in_d2 = ErrorClassifier.all_in_words_list(d2)
@@ -116,16 +113,18 @@ def solve_REPLACE(p1, p2):
     #    pass
 
     # greater similarity is better
-    sim1, c1 = evaluate_average_delta_similarity(d1, s1, s2)
-    sim2, c2 = evaluate_average_delta_similarity(d2, s1, s2)
+    # sim1, c1 = evaluate_average_delta_similarity(d1, s1, s2)
+    # sim2, c2 = evaluate_average_delta_similarity(d2, s1, s2)
+    sim1, c1 = 0, 0
+    sim2, c2 = 0, 0
 
     res = eval_largest(sim1, sim2)
     asdf[res][(2 if c1 else 0) + (1 if c2 else 0)] += 1
     return res
 
 
-def solve(p1, p2, error_type):
-    return globals()['solve_' + error_type.lower()](p1, p2)
+def solve(tokens1, tokens2, error_type):
+    return globals()['solve_' + error_type.lower()](tokens1, tokens2)
 
 
 prediction_freq = [0, 0]
@@ -158,7 +157,8 @@ with open('train.txt', encoding='utf-8') as fin:
         line = unicodedata.normalize('NFKD', line)
         p1, p2 = line.split('\t')
         error_type = ErrorClassifier.classify_error_labeled(p1, p2)
-        answer = solve(p1, p2, error_type)
+        tokens1, tokens2 = tokenize(p1, p2)
+        answer = solve(tokens1, tokens2, error_type)
 
         prediction_freq[answer] += 1
         if answer == 0:
