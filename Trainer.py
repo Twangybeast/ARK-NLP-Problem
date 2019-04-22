@@ -84,7 +84,7 @@ train_delta2 = []
 
 test1 = 0
 test2= 0
-def prepare_tags_for_nn(part1, part2, tags1, tags2):
+def prepare_replace_tags(part1, part2, tags1, tags2):
     global test1, test2
     tokens1, tokens2 = ErrorClassifier.tokenize(part1, part2)
     tags1 = tags1.split()
@@ -140,7 +140,7 @@ def train(p1, p2, error_type, t1, t2):
     if ENABLE_LEARN_WORDS:
         learn_words(p1)
     if error_type == 'REPLACE' and ENABLE_TRAIN_REPLACE_NN and not TRAIN_FROM_DISK_REPLACE:
-        prepare_tags_for_nn(p1, p2, t1, t2)
+        prepare_replace_tags(p1, p2, t1, t2)
     if ENABLE_TRAIN_ARRANGE_NN and ENABLE_PROCESS_ARRANGE_DATA and error_type == 'ARRANGE':
         prepare_arrange_tags(t1, t2)
 
@@ -182,6 +182,20 @@ def create_replace_nn_model(max_start, max_end):
     model = tf.keras.Model(inputs=[input_start, input_end, input_delta], outputs=output)
     return model
 
+def create_arrange_nn_model(max_length):
+    input = tf.keras.layers.Input(shape=(max_length,), dtype=tf.int32)
+
+    # input vocab is only 56 words
+    x = tf.keras.layers.Embedding(output_dim=20, input_dim=len(tags_to_id) + 1)(input)
+
+    x = tf.keras.layers.CuDNNLSTM(10, return_sequences=True)(x)
+    x = tf.keras.layers.CuDNNLSTM(10)(x)
+    x = tf.keras.layers.Dense(10, activation=tf.nn.tanh)(x)
+
+    output = tf.keras.layers.Dense(1, activation=tf.nn.sigmoid)(x)
+
+    model = tf.keras.Model(inputs=input, outputs=output)
+    return model
 
 if __name__ == '__main__':
     TESTING_RANGE = (900000, 1000000)
@@ -344,18 +358,7 @@ if __name__ == '__main__':
         dataset.shuffle(10000)
 
 
-        input = tf.keras.layers.Input(shape=(max_length,), dtype=tf.int32)
-
-        # input vocab is only 56 words
-        x = tf.keras.layers.Embedding(output_dim = 20, input_dim=len(tags_to_id) + 1)(input)
-
-        x = tf.keras.layers.CuDNNLSTM(10, return_sequences=True)(x)
-        x = tf.keras.layers.CuDNNLSTM(10)(x)
-        x = tf.keras.layers.Dense(10, activation=tf.nn.tanh)(x)
-
-        output = tf.keras.layers.Dense(1, activation=tf.nn.sigmoid)(x)
-
-        model = tf.keras.Model(inputs=input, outputs=output)
+        model = create_arrange_nn_model(max_length)
         model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
 
         print(model.summary())

@@ -35,9 +35,26 @@ def eval_largest(n1, n2):
     else:
         return 1
 
+def load_arrange_neural_network():
+    model = create_replace_nn_model(None)
+    model.load_weights('checkpoints/%s_arrange.ckpt' % FILE_NAME)
+    return model
 
 def solve_arrange(tokens1, tokens2, tags1, tags2):
-    return int(random.random() * 2)  # default to random
+
+    ids1 = list(map(lambda tag: tags_to_id[tag], tags1))
+    ids2 = list(map(lambda tag: tags_to_id[tag], tags2))
+
+    x1 = np.array([ids1])
+    x2 = np.array([ids2])
+
+    y1 = arrange_model.predict(x1)
+    y2 = arrange_model.predict(x2)
+
+    assert y1.size == 1
+    assert y2.size == 1
+
+    return eval_largest(y1.item(), y2.item())
 
 
 # Addition/Removal are symmetrical operations. In the testing dataset, they should be treated the same
@@ -162,6 +179,7 @@ FILE_NAME = 'train'
 # loads model data
 load_word_frequencies()
 replace_model = load_replace_neural_network()
+arrange_model = load_arrange_neural_network()
 
 with open(FILE_NAME + '.txt', encoding='utf-8') as file, open(FILE_NAME + '.spacy.txt') as file_tags:
 
