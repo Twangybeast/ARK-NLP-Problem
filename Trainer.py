@@ -18,12 +18,12 @@ from ErrorClassifier import ERROR_TYPES, tokenize_pure_words
 # Only can learn when the learned_words.txt file is empty
 ENABLE_LEARN_WORDS = False
 ENABLE_LEARN_EMBEDDING = True
-ENABLE_TRAIN_REPLACE_NN = True
+ENABLE_TRAIN_REPLACE_NN = False
 
 TRAIN_FROM_DISK_REPLACE = True
 
-ENABLE_TRAIN_ARRANGE_NN = False  # True when we want to train the ARRANGE neural network
-ENABLE_PROCESS_ARRANGE_DATA = True # True when we want to process the original .txt file for the dataset
+ENABLE_TRAIN_ARRANGE_NN = True  # True when we want to train the ARRANGE neural network
+ENABLE_PROCESS_ARRANGE_DATA = False # True when we want to process the original .txt file for the dataset
 
 ONLY_TRAIN_NN = True
 
@@ -318,7 +318,7 @@ if __name__ == '__main__':
                 for arrange_line in file_arrange:
                     x, y = arrange_line.rstrip().split('\t')
                     x = list(map(int, x.split()))
-                    y = int(y)
+                    y = float(y)
 
                     [x] = keras.preprocessing.sequence.pad_sequences([x], maxlen=max_length)
                     yield x, y
@@ -331,22 +331,26 @@ if __name__ == '__main__':
                  (tf.TensorShape([None,]), tf.TensorShape([])))
 
         dataset = dataset.repeat()
-        dataset = dataset.shuffle(1000)
+        dataset = dataset.shuffle(1000, seed=123)
 
         validation_dataset = dataset.take(int(samples * 0.1))  # 10% used for validation
-        validation_dataset = validation_dataset.batch(int(samples * 0.1))
+        validation_dataset = validation_dataset.batch(1000)
+        validation_dataset = validation_dataset.repeat()
 
-        BATCH_SIZE = 10
+        BATCH_SIZE = 1024
         dataset = dataset.batch(BATCH_SIZE)
+        dataset.shuffle(10000)
+        dataset.shuffle(10000)
+        dataset.shuffle(10000)
 
 
-        input = tf.keras.layers.Input(shape=(None,), dtype=tf.int32)
+        input = tf.keras.layers.Input(shape=(max_length,), dtype=tf.int32)
 
         # input vocab is only 56 words
         x = tf.keras.layers.Embedding(output_dim = 20, input_dim=len(tags_to_id) + 1)(input)
 
-        x = tf.keras.layers.LSTM(10, return_sequences=True)(x)
-        x = tf.keras.layers.LSTM(10)(x)
+        x = tf.keras.layers.CuDNNLSTM(10, return_sequences=True)(x)
+        x = tf.keras.layers.CuDNNLSTM(10)(x)
         x = tf.keras.layers.Dense(10)(x)
 
         output = tf.keras.layers.Dense(1)(x)
@@ -361,8 +365,10 @@ if __name__ == '__main__':
         print(dataset.output_types)
 
 
+        checkpoint_path = 'checkpoints/%s_replace2.ckpt' % FILE_NAME
+        cp_callback = tf.keras.callbacks.ModelCheckpoint(checkpoint_path, save_weights_only=True, save_best_only=False, verbose=1)
 
         model.fit(dataset, steps_per_epoch=100, epochs=20, verbose=2, validation_data=validation_dataset,
-                  validation_steps=1)
+                  validation_steps=1, callbacks=[cp_callback])
 
 
