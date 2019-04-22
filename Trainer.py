@@ -247,7 +247,7 @@ if __name__ == '__main__':
         validation_dataset = validation_dataset.batch(1000)
         validation_dataset = validation_dataset.repeat()
 
-        BATCH_SIZE = 1000
+        BATCH_SIZE = 1024
         dataset = dataset.batch(BATCH_SIZE)
         dataset.shuffle(10000)
         dataset.shuffle(10000)
@@ -260,22 +260,22 @@ if __name__ == '__main__':
 
 
         # input vocab is only 56 words
-        embedding = tf.keras.layers.Embedding(output_dim = 20, input_dim=len(tags_to_id) + 1)
+        embedding = tf.keras.layers.Embedding(output_dim = 30, input_dim=len(tags_to_id) + 1)
 
         x_s = embedding(input_start)
         x_e = embedding(input_end)
         x_d = embedding(input_delta)
 
-        x_s = tf.keras.layers.LSTM(10)(x_s)
-        x_e = tf.keras.layers.LSTM(10, go_backwards=False)(x_e) # converge such that last input is closest to the delta
+        x_s = tf.keras.layers.CuDNNLSTM(20)(x_s)
+        x_e = tf.keras.layers.CuDNNLSTM(20, go_backwards=False)(x_e) # converge such that last input is closest to the delta
 
         x_se = tf.keras.layers.concatenate([x_s, x_e])
-        x_se = tf.keras.layers.Dense(10)(x_se)
+        x_se = tf.keras.layers.Dense(20)(x_se)
 
         x_d = tf.keras.layers.Flatten()(x_d)
 
         x = tf.keras.layers.concatenate([x_se, x_d])
-        x = tf.keras.layers.Dense(10)(x)
+        x = tf.keras.layers.Dense(20)(x)
         output = tf.keras.layers.Dense(1)(x)
 
         model = tf.keras.Model(inputs=[input_start, input_end, input_delta], outputs=output)
@@ -287,7 +287,7 @@ if __name__ == '__main__':
         print(dataset.output_shapes)
         print(dataset.output_types)
 
-        checkpoint_path = 'checkpoints/%s_replace.ckpt' % FILE_NAME
+        checkpoint_path = 'checkpoints/%s_replace2.ckpt' % FILE_NAME
         cp_callback = tf.keras.callbacks.ModelCheckpoint(checkpoint_path, save_weights_only=True, save_best_only=False, verbose=1)
 
         model.load_weights(checkpoint_path)
