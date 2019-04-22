@@ -171,13 +171,13 @@ def create_replace_nn_model(max_start, max_end):
         x_e)  # converge such that last input is closest to the delta
 
     x_se = tf.keras.layers.concatenate([x_s, x_e])
-    x_se = tf.keras.layers.Dense(20)(x_se)
+    x_se = tf.keras.layers.Dense(20, activation=tf.nn.tanh)(x_se)
 
     x_d = tf.keras.layers.Flatten()(x_d)
 
     x = tf.keras.layers.concatenate([x_se, x_d])
-    x = tf.keras.layers.Dense(20)(x)
-    output = tf.keras.layers.Dense(1)(x)
+    x = tf.keras.layers.Dense(20, activation=tf.nn.tanh)(x)
+    output = tf.keras.layers.Dense(1, activation=tf.nn.sigmoid)(x)
 
     model = tf.keras.Model(inputs=[input_start, input_end, input_delta], outputs=output)
     return model
@@ -351,9 +351,9 @@ if __name__ == '__main__':
 
         x = tf.keras.layers.CuDNNLSTM(10, return_sequences=True)(x)
         x = tf.keras.layers.CuDNNLSTM(10)(x)
-        x = tf.keras.layers.Dense(10)(x)
+        x = tf.keras.layers.Dense(10, activation=tf.nn.tanh)(x)
 
-        output = tf.keras.layers.Dense(1)(x)
+        output = tf.keras.layers.Dense(1, activation=tf.nn.sigmoid)(x)
 
         model = tf.keras.Model(inputs=input, outputs=output)
         model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
