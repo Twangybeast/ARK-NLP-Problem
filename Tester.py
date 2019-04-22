@@ -6,7 +6,7 @@ import unicodedata
 import numpy as np
 
 import ErrorClassifier
-from Trainer import tags_to_id
+from Trainer import tags_to_id, create_replace_nn_model
 
 import tensorflow as tf
 from tensorflow import keras
@@ -42,7 +42,7 @@ def solve_arrange(tokens1, tokens2, tags1, tags2):
 
 # Addition/Removal are symmetrical operations. In the testing dataset, they should be treated the same
 def solve_add(tokens1, tokens2, tags1, tags2):
-    return 1 - solve_remove(tokens2, tokens1)
+    return 1 - solve_remove(tokens2, tokens1, tags1, tags2)
 
 
 def solve_remove(tokens1, tokens2, tags1, tags2):
@@ -80,6 +80,8 @@ def check_all_has_vectors(doc):
 
 
 def evaluate_average_delta_similarity(delta, start, end):
+    if not delta.has_vector:
+        return 0
     total = 0.0
     for t in start:
         total += delta.similarity(t) if t.has_vector else 0
@@ -88,7 +90,10 @@ def evaluate_average_delta_similarity(delta, start, end):
     return total
 
 def load_replace_neural_network():
-    return keras.models.load_model('replace.h5')
+    model = create_replace_nn_model(None, None)
+    model.load_weights('checkpoints/%s_replace2.ckpt' % FILE_NAME)
+    return model
+    # return keras.models.load_model('replace.h5')
 
 def solve_replace(tokens1, tokens2, tags1, tags2):
     # Simplest method, simply compare word similarity vectors
@@ -117,8 +122,14 @@ def solve_replace(tokens1, tokens2, tags1, tags2):
         ids_st = list(map(lambda token: tags_to_id[tag_map[token]], start))  # start ids
         ids_en = list(map(lambda token: tags_to_id[tag_map[token]], end))  # end ids
 
+        if len(ids_st) == 0:
+            ids_st = [0]
+        if len(ids_en) == 0:
+            ids_en = [0]
+
         input_start = ids_st
         input_en    = ids_en
+
         input_d1    = [ids_d1[0]]
         input_d2    = [ids_d2[0]]
 
@@ -146,11 +157,12 @@ error_freq = {k: 0 for k in ERROR_TYPES}
 
 TESTING_RANGE = (900000, 1000000)
 
+FILE_NAME = 'train'
+
 # loads model data
 load_word_frequencies()
 replace_model = load_replace_neural_network()
 
-FILE_NAME = 'train'
 with open(FILE_NAME + '.txt', encoding='utf-8') as file, open(FILE_NAME + '.spacy.txt') as file_tags:
 
     progress = 0
@@ -158,7 +170,7 @@ with open(FILE_NAME + '.txt', encoding='utf-8') as file, open(FILE_NAME + '.spac
     words_processed = 0
     for line in file:
         progress += 1
-        line_tag = file_tags.strip()
+        line_tag = file_tags.readline().strip()
         if not (TESTING_RANGE[0] < progress <= TESTING_RANGE[1]):
             continue
 
@@ -169,7 +181,7 @@ with open(FILE_NAME + '.txt', encoding='utf-8') as file, open(FILE_NAME + '.spac
 
         error_type = ErrorClassifier.classify_error_labeled(p1, p2)
         tokens1, tokens2 = tokenize(p1, p2)
-        answer = solve(tokens1, tokens2, error_type)
+        answer = solve(tokens1, tokens2, error_type, tags1, tags2)
 
         prediction_freq[answer] += 1
         if answer == 0:

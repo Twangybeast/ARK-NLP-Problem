@@ -154,6 +154,33 @@ def learn_embedding(part):
     training_words.append(part)
 '''
 
+def create_replace_nn_model(max_start, max_end):
+    input_start = tf.keras.layers.Input(shape=(max_start,), dtype=tf.int32, name='start')
+    input_end = tf.keras.layers.Input(shape=(max_end,), dtype=tf.int32, name='end')
+    input_delta = tf.keras.layers.Input(shape=(1,), dtype=tf.int32, name='delta')
+
+    # input vocab is only 56 words
+    embedding = tf.keras.layers.Embedding(output_dim=30, input_dim=len(tags_to_id) + 1)
+
+    x_s = embedding(input_start)
+    x_e = embedding(input_end)
+    x_d = embedding(input_delta)
+
+    x_s = tf.keras.layers.CuDNNLSTM(20)(x_s)
+    x_e = tf.keras.layers.CuDNNLSTM(20, go_backwards=False)(
+        x_e)  # converge such that last input is closest to the delta
+
+    x_se = tf.keras.layers.concatenate([x_s, x_e])
+    x_se = tf.keras.layers.Dense(20)(x_se)
+
+    x_d = tf.keras.layers.Flatten()(x_d)
+
+    x = tf.keras.layers.concatenate([x_se, x_d])
+    x = tf.keras.layers.Dense(20)(x)
+    output = tf.keras.layers.Dense(1)(x)
+
+    model = tf.keras.Model(inputs=[input_start, input_end, input_delta], outputs=output)
+    return model
 
 
 if __name__ == '__main__':
@@ -254,31 +281,7 @@ if __name__ == '__main__':
         dataset.shuffle(10000)
 
         # Create the model
-        input_start = tf.keras.layers.Input(shape=(max_start,), dtype=tf.int32, name='start')
-        input_end   = tf.keras.layers.Input(shape=(max_end,), dtype=tf.int32, name='end')
-        input_delta = tf.keras.layers.Input(shape=(1,), dtype=tf.int32, name='delta')
-
-
-        # input vocab is only 56 words
-        embedding = tf.keras.layers.Embedding(output_dim = 30, input_dim=len(tags_to_id) + 1)
-
-        x_s = embedding(input_start)
-        x_e = embedding(input_end)
-        x_d = embedding(input_delta)
-
-        x_s = tf.keras.layers.CuDNNLSTM(20)(x_s)
-        x_e = tf.keras.layers.CuDNNLSTM(20, go_backwards=False)(x_e) # converge such that last input is closest to the delta
-
-        x_se = tf.keras.layers.concatenate([x_s, x_e])
-        x_se = tf.keras.layers.Dense(20)(x_se)
-
-        x_d = tf.keras.layers.Flatten()(x_d)
-
-        x = tf.keras.layers.concatenate([x_se, x_d])
-        x = tf.keras.layers.Dense(20)(x)
-        output = tf.keras.layers.Dense(1)(x)
-
-        model = tf.keras.Model(inputs=[input_start, input_end, input_delta], outputs=output)
+        model = create_replace_nn_model(max_start, max_end)
         model.compile(optimizer=tf.train.AdamOptimizer(), loss='binary_crossentropy', metrics=['accuracy'])
 
         print(model.summary())
@@ -291,6 +294,7 @@ if __name__ == '__main__':
         cp_callback = tf.keras.callbacks.ModelCheckpoint(checkpoint_path, save_weights_only=True, save_best_only=False, verbose=1)
 
         model.load_weights(checkpoint_path)
+        # model.save('replace.h5')
         model.fit(dataset, steps_per_epoch=50, epochs=200, verbose=2, validation_data=validation_dataset, validation_steps=1, callbacks=[cp_callback])
     if ENABLE_TRAIN_ARRANGE_NN:
         # create the dataset
