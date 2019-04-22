@@ -6,7 +6,7 @@ nlp = spacy.load('en_core_web_lg', disable=['parser', 'ner'])
 
 
 # Converts the entire text file into a spacy file
-src_name = 'train'
+src_name = 'text'
 parts1 = []
 parts2 = []
 print('Reading input...')

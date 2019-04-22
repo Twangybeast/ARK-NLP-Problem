@@ -3,10 +3,15 @@ import random
 import time
 import unicodedata
 
-import ErrorClassifier
+import numpy as np
 
-import en_core_web_lg
-nlp = en_core_web_lg.load()
+import ErrorClassifier
+from Trainer import tags_to_id
+
+import tensorflow as tf
+from tensorflow import keras
+#import en_core_web_lg
+#nlp = en_core_web_lg.load()
 
 from ErrorClassifier import ERROR_TYPES, tokenize, tokenize_pure_words
 
@@ -31,22 +36,22 @@ def eval_largest(n1, n2):
         return 1
 
 
-def solve_arrange(tokens1, tokens2):
+def solve_arrange(tokens1, tokens2, tags1, tags2):
     return int(random.random() * 2)  # default to random
 
 
 # Addition/Removal are symmetrical operations. In the testing dataset, they should be treated the same
-def solve_add(tokens1, tokens2):
+def solve_add(tokens1, tokens2, tags1, tags2):
     return 1 - solve_remove(tokens2, tokens1)
 
 
-def solve_remove(tokens1, tokens2):
+def solve_remove(tokens1, tokens2, tags1, tags2):
     # default behavior, return the larger one (removal of tokens from larger one is common)
     return 0 # functionally identical to the commented out version
     # return eval_largest(len(tokens1), len(tokens2))
 
 
-def solve_typo(tokens1, tokens2):
+def solve_typo(tokens1, tokens2, tags1, tags2):
     # Find the delta
     d1, d2 = ErrorClassifier.find_delta_from_tokens(tokens1, tokens2)
 
@@ -74,57 +79,65 @@ def check_all_has_vectors(doc):
     return True
 
 
-def evaluate_average_delta_similarity(delta_tokens, starting_match, ending_match):
-    delta = ' '.join(delta_tokens)
-
-    # Tokenize and find word vectors
-    s_tokens = nlp(starting_match)
-    e_tokens = nlp(ending_match)
-    d_tokens = nlp(delta_tokens)
-
-    size_d = len(d_tokens)
-    assert size_d > 0
-
+def evaluate_average_delta_similarity(delta, start, end):
     total = 0.0
-    for d in d_tokens:
-        if d.has_vector:
-            for t in s_tokens:
-                total += d.similarity(t) if t.has_vector else 0
-            for t in e_tokens:
-                total += d.similarity(t) if t.has_vector else 0
+    for t in start:
+        total += delta.similarity(t) if t.has_vector else 0
+    for t in end:
+        total += delta.similarity(t) if t.has_vector else 0
+    return total
 
-    return total / size_d, check_all_has_vectors(d_tokens)
+def load_replace_neural_network():
+    return keras.models.load_model('replace.h5')
 
-asdf = [[0, 0, 0, 0], [0,0,0,0]]
-def solve_replace(tokens1, tokens2):
+def solve_replace(tokens1, tokens2, tags1, tags2):
     # Simplest method, simply compare word similarity vectors
     # Find the delta
     d1, d2, s1, s2 = ErrorClassifier.find_all_delta_from_tokens(tokens1, tokens2)
+    tags1 = tags1.split()
+    tags2 = tags2.split()
 
-    # d1 = ' '.join(d1)
-    # d2 = ' '.join(d2)
-    # s1 = ' '.join(s1)
-    # s2 = ' '.join(s2)
+    tag_map = {}
+    for i in range(len(tokens1)):
+        tag_map[tokens1[i]] = tags1[i]
+    for i in range(len(tokens2)):
+        tag_map[tokens2[i]] = tags2[i]
 
-    # in_d1 = ErrorClassifier.all_in_words_list(d1)
-    # in_d2 = ErrorClassifier.all_in_words_list(d2)
+    delta1, delta2, start, end = ErrorClassifier.find_all_delta_from_tokens(tokens1, tokens2)
 
-    ##if in_d1 and in_d2:
-    #    pass
+    # no difference in replacement tags, don't use neural net, use similarities of word vectors
+    if tag_map[delta1[0]] == tag_map[delta2[0]]:
+        return eval_largest(evaluate_average_delta_similarity(delta1[0], start, end),
+                            evaluate_average_delta_similarity(delta2[0], start, end))
+    else:
+        # use the neural network
+        # preprocess the data
+        ids_d1 = list(map(lambda token: tags_to_id[tag_map[token]], delta1))
+        ids_d2 = list(map(lambda token: tags_to_id[tag_map[token]], delta2))
+        ids_st = list(map(lambda token: tags_to_id[tag_map[token]], start))  # start ids
+        ids_en = list(map(lambda token: tags_to_id[tag_map[token]], end))  # end ids
 
-    # greater similarity is better
-    # sim1, c1 = evaluate_average_delta_similarity(d1, s1, s2)
-    # sim2, c2 = evaluate_average_delta_similarity(d2, s1, s2)
-    sim1, c1 = 0, 0
-    sim2, c2 = 0, 0
+        input_start = ids_st
+        input_en    = ids_en
+        input_d1    = [ids_d1[0]]
+        input_d2    = [ids_d2[0]]
 
-    res = eval_largest(sim1, sim2)
-    asdf[res][(2 if c1 else 0) + (1 if c2 else 0)] += 1
-    return res
+        x1 = [np.array([input_start]), np.array([input_en]), np.array([input_d1])]
+        x2 = [np.array([input_start]), np.array([input_en]), np.array([input_d2])]
+
+        y1 = replace_model.predict(x1)
+        y2 = replace_model.predict(x2)
+
+        assert y1.size == 1
+        assert y2.size == 1
+
+        return eval_largest(y1.item(), y2.item())
 
 
-def solve(tokens1, tokens2, error_type):
-    return globals()['solve_' + error_type.lower()](tokens1, tokens2)
+
+
+def solve(tokens1, tokens2, error_type, tags1, tags2):
+    return globals()['solve_' + error_type.lower()](tokens1, tokens2, tags1, tags2)
 
 
 prediction_freq = [0, 0]
@@ -135,27 +148,25 @@ TESTING_RANGE = (900000, 1000000)
 
 # loads model data
 load_word_frequencies()
+replace_model = load_replace_neural_network()
 
-with open('train.txt', encoding='utf-8') as fin:
-    progress = 0
-    for line in fin:
-        progress += 1
-        if not (TESTING_RANGE[0] < progress <= TESTING_RANGE[1]):
-            continue
-
-    fin.seek(0)
+FILE_NAME = 'train'
+with open(FILE_NAME + '.txt', encoding='utf-8') as file, open(FILE_NAME + '.spacy.txt') as file_tags:
 
     progress = 0
     start_time = time.time()
     words_processed = 0
-    for line in fin:
+    for line in file:
         progress += 1
+        line_tag = file_tags.strip()
         if not (TESTING_RANGE[0] < progress <= TESTING_RANGE[1]):
             continue
 
         line = line.strip()
         line = unicodedata.normalize('NFKD', line)
         p1, p2 = line.split('\t')
+        tags1, tags2 = line_tag.split('\t')
+
         error_type = ErrorClassifier.classify_error_labeled(p1, p2)
         tokens1, tokens2 = tokenize(p1, p2)
         answer = solve(tokens1, tokens2, error_type)
@@ -177,4 +188,3 @@ with open('train.txt', encoding='utf-8') as fin:
 print(prediction_freq)
 print(error_correct)
 print(error_freq)
-print(asdf)
