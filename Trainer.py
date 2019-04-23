@@ -10,7 +10,7 @@ from functools import reduce
 
 import tensorflow as tf
 from tensorflow import keras
-#tf.enable_eager_execution()
+# tf.enable_eager_execution()
 
 import ErrorClassifier
 from ErrorClassifier import ERROR_TYPES, tokenize_pure_words
@@ -20,12 +20,23 @@ ENABLE_LEARN_WORDS = False
 ENABLE_LEARN_EMBEDDING = True
 
 ENABLE_TRAIN_REPLACE_NN = True
-TRAIN_FROM_DISK_REPLACE = True
-
 ENABLE_TRAIN_ARRANGE_NN = False  # True when we want to train the ARRANGE neural network
-ENABLE_PROCESS_ARRANGE_DATA = False # True when we want to process the original .txt file for the dataset
+
+ENABLE_PROCESS_REPLACE_DATA = False
+ENABLE_PROCESS_ARRANGE_DATA = False  # True when we want to process the original .txt file for the dataset
+
+ENABLE_LOAD_REPLACE_WEIGHTS = True
+ENABLE_LOAD_ARRANGE_WEIGHTS = True
 
 ONLY_TRAIN_NN = True
+
+FILE_NAME = 'train'
+
+PATH_REPLACE_CHECKPOINT = 'checkpoints/%s_replace_w0_d1.ckpt' % FILE_NAME
+PATH_ARRANGE_CHECKPOINT = 'checkpoints/%s_arrange_w1_d0.ckpt' % FILE_NAME
+
+PATH_REPLACE_DATA = FILE_NAME + '.replace.txt'
+PATH_ARRANGE_DATA = FILE_NAME + '.arrange.txt'
 
 learned_words = set()
 
@@ -42,9 +53,7 @@ def save_learned_words():
         for word in learned_words:
             fout.write(word + '\n')
 
-
 word_freqs = {}
-
 
 def learn_word_frequencies(part):
     words = tokenize_pure_words(part)
@@ -74,6 +83,7 @@ def load_tags_to_id():
             id += 1
     return tags_to_id
 
+
 tags_to_id = load_tags_to_id()
 
 # For the REPLACE neural network
@@ -83,7 +93,9 @@ train_delta1 = []
 train_delta2 = []
 
 test1 = 0
-test2= 0
+test2 = 0
+
+
 def prepare_replace_tags(part1, part2, tags1, tags2):
     global test1, test2
     tokens1, tokens2 = ErrorClassifier.tokenize(part1, part2)
@@ -102,8 +114,8 @@ def prepare_replace_tags(part1, part2, tags1, tags2):
 
     ids_d1 = list(map(lambda token: tags_to_id[tag_map[token]], delta1))
     ids_d2 = list(map(lambda token: tags_to_id[tag_map[token]], delta2))
-    ids_st = list(map(lambda token: tags_to_id[tag_map[token]], start))   # start ids
-    ids_en = list(map(lambda token: tags_to_id[tag_map[token]], end))     # end ids
+    ids_st = list(map(lambda token: tags_to_id[tag_map[token]], start))  # start ids
+    ids_en = list(map(lambda token: tags_to_id[tag_map[token]], end))  # end ids
 
     if ids_d1[0] == ids_d2[0]:
         test1 += 1
@@ -116,9 +128,11 @@ def prepare_replace_tags(part1, part2, tags1, tags2):
         train_delta1.append(ids_d1)
         train_delta2.append(ids_d2)
 
+
 # For the ARRANGE neural network
 train_arrange_x = []
 train_arrange_y = []
+
 
 def prepare_arrange_tags(tags1, tags2):
     tags1 = tags1.split()
@@ -134,29 +148,21 @@ def prepare_arrange_tags(tags1, tags2):
     train_arrange_x.append(ids2)
     train_arrange_y.append(0.)
 
+
 def train(p1, p2, error_type, t1, t2):
     # note: learn words is done in the error classifier (classification requires knowing the words)
     learn_word_frequencies(p1)  # only train frequencies on first part, second part is corrupted text
     if ENABLE_LEARN_WORDS:
         learn_words(p1)
-    if error_type == 'REPLACE' and ENABLE_TRAIN_REPLACE_NN and not TRAIN_FROM_DISK_REPLACE:
+    if error_type == 'REPLACE' and ENABLE_TRAIN_REPLACE_NN and ENABLE_PROCESS_REPLACE_DATA:
         prepare_replace_tags(p1, p2, t1, t2)
     if ENABLE_TRAIN_ARRANGE_NN and ENABLE_PROCESS_ARRANGE_DATA and error_type == 'ARRANGE':
         prepare_arrange_tags(t1, t2)
 
 
-
-'''
-# creates an index
-training_words = []
-VOCAB_SIZE = 20000
-def learn_embedding(part):
-    training_words.append(part)
-'''
-
-def create_replace_nn_model(max_start, max_end):
-    input_start = tf.keras.layers.Input(shape=(max_start,), dtype=tf.int32, name='start')
-    input_end = tf.keras.layers.Input(shape=(max_end,), dtype=tf.int32, name='end')
+def create_replace_nn_model():
+    input_start = tf.keras.layers.Input(shape=(None,), dtype=tf.int32, name='start')
+    input_end = tf.keras.layers.Input(shape=(None,), dtype=tf.int32, name='end')
     input_delta = tf.keras.layers.Input(shape=(1,), dtype=tf.int32, name='delta')
 
     # input vocab is only 56 words
@@ -185,8 +191,9 @@ def create_replace_nn_model(max_start, max_end):
     model = tf.keras.Model(inputs=[input_start, input_end, input_delta], outputs=output)
     return model
 
-def create_arrange_nn_model(max_length):
-    input = tf.keras.layers.Input(shape=(max_length,), dtype=tf.int32)
+
+def create_arrange_nn_model():
+    input = tf.keras.layers.Input(shape=(None,), dtype=tf.int32)
 
     # input vocab is only 56 words
     x = tf.keras.layers.Embedding(output_dim=30, input_dim=len(tags_to_id) + 1)(input)
@@ -200,12 +207,12 @@ def create_arrange_nn_model(max_length):
     model = tf.keras.Model(inputs=input, outputs=output)
     return model
 
+
 if __name__ == '__main__':
     TESTING_RANGE = (900000, 1000000)
     # .spacy.txt is a pre-processed file containing a tokenized
-    FILE_NAME = 'train'
     if not ONLY_TRAIN_NN:
-        with open(FILE_NAME+'.txt', encoding='utf-8') as file, open(FILE_NAME + '.spacy.txt') as ftags:
+        with open(FILE_NAME + '.txt', encoding='utf-8') as file, open(FILE_NAME + '.spacy.txt') as ftags:
             progress = 0
             start_time = time.time()
             words_processed = 0
@@ -213,7 +220,7 @@ if __name__ == '__main__':
                 line_tag = ftags.readline().strip()
                 progress += 1
                 if TESTING_RANGE[0] < progress <= TESTING_RANGE[1]:
-                    break
+                    continue
 
                 line = line.strip()
                 line = unicodedata.normalize('NFKD', line)
@@ -244,23 +251,23 @@ if __name__ == '__main__':
         max_start = 0
         max_end = 0
         samples = 0
-        if not TRAIN_FROM_DISK_REPLACE:
+        if ENABLE_PROCESS_REPLACE_DATA:
             # saves the data to a file
             assert len(train_delta1) == len(train_delta2) == len(train_start) == len(train_end)
-            max_start   = len(max(train_start, key=len))
-            max_end     = len(max(train_end, key=len))
+            max_start = len(max(train_start, key=len))
+            max_end = len(max(train_end, key=len))
             samples = len(train_delta1)
-            with open(FILE_NAME+'.replace.txt', 'x') as file_replace:
+            with open(PATH_REPLACE_DATA, 'x') as file_replace:
                 file_replace.write('{} {} {}\n'.format(max_start, max_end, samples))
                 for i in range(samples):
-                    file_replace.write(' '.join(map(str, train_start[i]))  + '\t')
-                    file_replace.write(' '.join(map(str, train_end[i]))    + '\t')
+                    file_replace.write(' '.join(map(str, train_start[i])) + '\t')
+                    file_replace.write(' '.join(map(str, train_end[i])) + '\t')
                     file_replace.write(str(train_delta1[i][0]) + '\t')
                     file_replace.write(str(train_delta2[i][0]) + '\n')
 
 
         def replace_nn_generator():
-            with open(FILE_NAME+'.replace.txt') as file_replace:
+            with open(PATH_REPLACE_DATA) as file_replace:
                 file_replace.readline()
                 for replace_line in file_replace:
                     start, end, delta1, delta2 = replace_line.rstrip().split('\t')
@@ -270,24 +277,24 @@ if __name__ == '__main__':
                     delta2 = [int(delta2)]
 
                     [start] = keras.preprocessing.sequence.pad_sequences([start], maxlen=max_start)
-                    [end]   = keras.preprocessing.sequence.pad_sequences([end]  , maxlen=max_end)
+                    [end] = keras.preprocessing.sequence.pad_sequences([end], maxlen=max_end)
 
                     yield {'start': start, 'end': end, 'delta': delta1}, 1.
                     yield {'start': start, 'end': end, 'delta': delta2}, 0.
 
 
-        with open(FILE_NAME+'.replace.txt') as file_replace:
+        with open(PATH_REPLACE_DATA) as file_replace:
             max_start, max_end, samples = list(map(int, file_replace.readline().strip().split()))
         dataset = tf.data.Dataset.from_generator(replace_nn_generator,
-                 ({'start':tf.int32, 'end':tf.int32, 'delta': tf.int32}, tf.float32),
-                 ({'start':tf.TensorShape([None,]), 'end':tf.TensorShape([None,]), 'delta': tf.TensorShape([1,])},
-                    tf.TensorShape([])))
-
+                                                 ({'start': tf.int32, 'end': tf.int32, 'delta': tf.int32}, tf.float32),
+                                                 ({'start': tf.TensorShape([None, ]), 'end': tf.TensorShape([None, ]),
+                                                   'delta': tf.TensorShape([1, ])},
+                                                  tf.TensorShape([])))
 
         dataset = dataset.repeat()
         dataset = dataset.shuffle(1000, seed=123)
 
-        validation_dataset = dataset.take(int(samples * 0.1)) # 10% used for validation
+        validation_dataset = dataset.take(int(samples * 0.1))  # 10% used for validation
         validation_dataset = validation_dataset.batch(1000)
         validation_dataset = validation_dataset.repeat()
 
@@ -298,21 +305,19 @@ if __name__ == '__main__':
         dataset.shuffle(10000)
 
         # Create the model
-        model = create_replace_nn_model(max_start, max_end)
+        model = create_replace_nn_model()
         model.compile(optimizer=tf.train.AdamOptimizer(), loss='binary_crossentropy', metrics=['accuracy'])
 
         print(model.summary())
         print('-------------')
-        print(dataset)
-        print(dataset.output_shapes)
-        print(dataset.output_types)
 
-        checkpoint_path = 'checkpoints/%s_replace_w0_d1.ckpt' % FILE_NAME
-        cp_callback = tf.keras.callbacks.ModelCheckpoint(checkpoint_path, save_weights_only=True, save_best_only=False, verbose=1)
+        cp_callback = tf.keras.callbacks.ModelCheckpoint(PATH_REPLACE_CHECKPOINT, save_weights_only=True,
+                                                         save_best_only=False, verbose=1)
+        if ENABLE_LOAD_REPLACE_WEIGHTS:
+            model.load_weights(PATH_REPLACE_CHECKPOINT)
 
-        model.load_weights(checkpoint_path)
-        # model.save('replace.h5')
-        model.fit(dataset, steps_per_epoch=50, epochs=200, verbose=2, validation_data=validation_dataset, validation_steps=1, callbacks=[cp_callback])
+        model.fit(dataset, steps_per_epoch=50, epochs=200, verbose=2, validation_data=validation_dataset,
+                  validation_steps=1, callbacks=[cp_callback])
     if ENABLE_TRAIN_ARRANGE_NN:
         # create the dataset
         samples = 0
@@ -322,7 +327,7 @@ if __name__ == '__main__':
             assert len(train_arrange_x) == len(train_arrange_y)
             max_length = len(max(train_arrange_x, key=len))
             samples = len(train_arrange_x)
-            with open(FILE_NAME+'.arrange.txt', 'x') as file_arrange:
+            with open(PATH_ARRANGE_DATA, 'x') as file_arrange:
                 file_arrange.write('{} {}\n'.format(max_length, samples))
                 for i in range(samples):
                     file_arrange.write(' '.join(map(str, train_arrange_x[i])) + '\t')
@@ -330,7 +335,7 @@ if __name__ == '__main__':
 
 
         def arrange_nn_generator():
-            with open(FILE_NAME+'.arrange.txt') as file_arrange:
+            with open(PATH_ARRANGE_DATA) as file_arrange:
                 file_arrange.readline()
                 for arrange_line in file_arrange:
                     x, y = arrange_line.rstrip().split('\t')
@@ -341,11 +346,11 @@ if __name__ == '__main__':
                     yield x, y
 
 
-        with open(FILE_NAME+'.arrange.txt') as file_arrange:
+        with open(PATH_ARRANGE_DATA) as file_arrange:
             max_length, samples = list(map(int, file_arrange.readline().strip().split()))
         dataset = tf.data.Dataset.from_generator(arrange_nn_generator,
-                 (tf.int32, tf.float32),
-                 (tf.TensorShape([None,]), tf.TensorShape([])))
+                                                 (tf.int32, tf.float32),
+                                                 (tf.TensorShape([None, ]), tf.TensorShape([])))
 
         dataset = dataset.repeat()
         dataset = dataset.shuffle(1000, seed=123)
@@ -360,22 +365,15 @@ if __name__ == '__main__':
         dataset.shuffle(10000)
         dataset.shuffle(10000)
 
-
-        model = create_arrange_nn_model(max_length)
+        model = create_arrange_nn_model()
         model.compile(optimizer=tf.train.AdamOptimizer(), loss='binary_crossentropy', metrics=['accuracy'])
 
         print(model.summary())
         print('-------------')
-        print(dataset)
-        print(dataset.output_shapes)
-        print(dataset.output_types)
 
-
-        checkpoint_path = 'checkpoints/%s_arrange_w1_d0.ckpt' % FILE_NAME
-        cp_callback = tf.keras.callbacks.ModelCheckpoint(checkpoint_path, save_weights_only=True, save_best_only=False, verbose=1)
-
-        model.load_weights(checkpoint_path)
+        cp_callback = tf.keras.callbacks.ModelCheckpoint(PATH_ARRANGE_CHECKPOINT, save_weights_only=True,
+                                                         save_best_only=False, verbose=1)
+        if ENABLE_LOAD_ARRANGE_WEIGHTS:
+            model.load_weights(PATH_ARRANGE_CHECKPOINT)
         model.fit(dataset, steps_per_epoch=50, epochs=200, verbose=2, validation_data=validation_dataset,
                   validation_steps=1, callbacks=[cp_callback])
-
-

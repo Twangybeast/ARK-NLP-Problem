@@ -6,7 +6,8 @@ import unicodedata
 import numpy as np
 
 import ErrorClassifier
-from Trainer import tags_to_id, create_replace_nn_model, create_arrange_nn_model
+from Trainer import tags_to_id, create_replace_nn_model, create_arrange_nn_model, \
+    PATH_REPLACE_CHECKPOINT, PATH_ARRANGE_CHECKPOINT, FILE_NAME
 
 import tensorflow as tf
 from tensorflow import keras
@@ -36,8 +37,8 @@ def eval_largest(n1, n2):
         return 1
 
 def load_arrange_neural_network():
-    model = create_arrange_nn_model(None)
-    model.load_weights('checkpoints/%s_arrange_w1_d0.ckpt' % FILE_NAME)
+    model = create_arrange_nn_model()
+    model.load_weights(PATH_ARRANGE_CHECKPOINT)
     return model
 
 def solve_arrange(tokens1, tokens2, tags1, tags2):
@@ -109,8 +110,8 @@ def evaluate_average_delta_similarity(delta, start, end):
     return total
 
 def load_replace_neural_network():
-    model = create_replace_nn_model(None, None)
-    model.load_weights('checkpoints/%s_replace_w0_d1.ckpt' % FILE_NAME)
+    model = create_replace_nn_model()
+    model.load_weights(PATH_REPLACE_CHECKPOINT)
     return model
     # return keras.models.load_model('replace.h5')
 
@@ -175,8 +176,6 @@ error_correct = {k: 0 for k in ERROR_TYPES}
 error_freq = {k: 0 for k in ERROR_TYPES}
 
 TESTING_RANGE = (900000, 1000000)
-
-FILE_NAME = 'train'
 
 # loads model data
 load_word_frequencies()
