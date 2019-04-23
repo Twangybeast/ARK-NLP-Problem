@@ -6,7 +6,7 @@ import unicodedata
 import numpy as np
 
 import ErrorClassifier
-from Trainer import tags_to_id, create_replace_nn_model
+from Trainer import tags_to_id, create_replace_nn_model, create_arrange_nn_model
 
 import tensorflow as tf
 from tensorflow import keras
@@ -36,7 +36,7 @@ def eval_largest(n1, n2):
         return 1
 
 def load_arrange_neural_network():
-    model = create_replace_nn_model(None)
+    model = create_arrange_nn_model(None)
     model.load_weights('checkpoints/%s_arrange.ckpt' % FILE_NAME)
     return model
 
@@ -108,7 +108,7 @@ def evaluate_average_delta_similarity(delta, start, end):
 
 def load_replace_neural_network():
     model = create_replace_nn_model(None, None)
-    model.load_weights('checkpoints/%s_replace2.ckpt' % FILE_NAME)
+    model.load_weights('checkpoints/%s_replace.ckpt' % FILE_NAME)
     return model
     # return keras.models.load_model('replace.h5')
 

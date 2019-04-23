@@ -18,11 +18,11 @@ from ErrorClassifier import ERROR_TYPES, tokenize_pure_words
 # Only can learn when the learned_words.txt file is empty
 ENABLE_LEARN_WORDS = False
 ENABLE_LEARN_EMBEDDING = True
-ENABLE_TRAIN_REPLACE_NN = False
 
+ENABLE_TRAIN_REPLACE_NN = False
 TRAIN_FROM_DISK_REPLACE = True
 
-ENABLE_TRAIN_ARRANGE_NN = True  # True when we want to train the ARRANGE neural network
+ENABLE_TRAIN_ARRANGE_NN = False  # True when we want to train the ARRANGE neural network
 ENABLE_PROCESS_ARRANGE_DATA = False # True when we want to process the original .txt file for the dataset
 
 ONLY_TRAIN_NN = True
@@ -304,10 +304,10 @@ if __name__ == '__main__':
         print(dataset.output_shapes)
         print(dataset.output_types)
 
-        checkpoint_path = 'checkpoints/%s_replace2.ckpt' % FILE_NAME
+        checkpoint_path = 'checkpoints/%s_replace.ckpt' % FILE_NAME
         cp_callback = tf.keras.callbacks.ModelCheckpoint(checkpoint_path, save_weights_only=True, save_best_only=False, verbose=1)
 
-        model.load_weights(checkpoint_path)
+        # model.load_weights(checkpoint_path)
         # model.save('replace.h5')
         model.fit(dataset, steps_per_epoch=50, epochs=200, verbose=2, validation_data=validation_dataset, validation_steps=1, callbacks=[cp_callback])
     if ENABLE_TRAIN_ARRANGE_NN:
@@ -359,7 +359,7 @@ if __name__ == '__main__':
 
 
         model = create_arrange_nn_model(max_length)
-        model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+        model.compile(optimizer=tf.train.AdamOptimizer(), loss='binary_crossentropy', metrics=['accuracy'])
 
         print(model.summary())
         print('-------------')
@@ -368,10 +368,10 @@ if __name__ == '__main__':
         print(dataset.output_types)
 
 
-        checkpoint_path = 'checkpoints/%s_replace2.ckpt' % FILE_NAME
+        checkpoint_path = 'checkpoints/%s_arrange.ckpt' % FILE_NAME
         cp_callback = tf.keras.callbacks.ModelCheckpoint(checkpoint_path, save_weights_only=True, save_best_only=False, verbose=1)
 
-        model.fit(dataset, steps_per_epoch=100, epochs=20, verbose=2, validation_data=validation_dataset,
+        model.fit(dataset, steps_per_epoch=50, epochs=200, verbose=2, validation_data=validation_dataset,
                   validation_steps=1, callbacks=[cp_callback])
 
 
