@@ -10,6 +10,10 @@ import Levenshtein
 import spacy
 nlp_tokenizer = spacy.load('en_core_web_lg', disable=['tagger', 'parser', 'ner'])
 
+
+ERROR_TYPES = ['ARRANGE', 'ADD', 'REMOVE', 'TYPO', 'REPLACE']
+
+
 def tokenize(p1, p2):
     t1 = nlp_tokenizer(p1)
     t2 = nlp_tokenizer(p2)
@@ -89,6 +93,7 @@ def load_words_list():
             res.update(map(lambda x: x.lower(), fin.read().split()))
     return res
 
+
 def is_num(word):
     try:
         val = int(word)
@@ -96,7 +101,7 @@ def is_num(word):
     except ValueError:
         return False
 
-words_list = load_words_list()
+
 def check_word_list(word):
     if is_num(word):
         return True
@@ -104,6 +109,7 @@ def check_word_list(word):
         return True
     else:
         return False
+
 
 def all_in_words_list(part):
     words = tokenize_pure_words(part)
@@ -171,8 +177,6 @@ def classify_error_labeled(part1="", part2="", tokens1 = None, tokens2 = None):
         return 'REPLACE'
 
 
-ERROR_TYPES = ['ARRANGE', 'ADD', 'REMOVE', 'TYPO', 'REPLACE']
-
 def generator_file_tokenizer(file_name, use_line_num=lambda n: True, encoding=None):
     def parts_yielder():
         with open(file_name, encoding=encoding) as file:
@@ -200,6 +204,7 @@ def generator_file_tokenizer(file_name, use_line_num=lambda n: True, encoding=No
         yield tokens1, tokens2
 
 
+words_list = load_words_list()
 
 
 if __name__ == '__main__':
@@ -220,28 +225,6 @@ if __name__ == '__main__':
             print('\rProgress: [{}] Word Processed: [{}] Words per second: [{}] Lines per second: [{}]'
                   .format(progress, words_processed, words_processed / (time.time() - start_time),
                           (progress / (time.time() - start_time))), end='')
-    ''' Old code
-    with open('train.txt', encoding='utf-8') as fin:
-        progress = 0
-        start_time = time.time()
-        words_processed = 0
-        for line in fin:
-            progress += 1
-            l = line.strip()
-            l = unicodedata.normalize('NFKD', l)
-            p1, p2 = l.split('\t')
-            error = classify_error_labeled(p1, p2)
-            error_frequency[error] += 1
-
-            # Display progression in number of samples processed, use random to avoid too many (slow) interactions w/
-            # console
-            words_processed += len(p1.split()) + len(p2.split())
-            if progress % 100 == 0:
-                print('\rProgress: [{}] Word Processed: [{}] Words per second: [{}] Lines per second: [{}]'
-                      .format(progress, words_processed,
-                              words_processed / (time.time() - start_time), (progress / (time.time() - start_time))),
-                      end='')
-    '''
     print()
     print(error_frequency)
 

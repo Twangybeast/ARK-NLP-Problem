@@ -7,17 +7,72 @@ import numpy as np
 
 import ErrorClassifier
 from Trainer import tags_to_id, create_replace_nn_model, create_arrange_nn_model, \
-    PATH_REPLACE_CHECKPOINT, PATH_ARRANGE_CHECKPOINT, FILE_NAME
+    PATH_REPLACE_CHECKPOINT, PATH_ARRANGE_CHECKPOINT, FILE_NAME, \
+    TESTING_RANGE
 
 import tensorflow as tf
 from tensorflow import keras
-#import en_core_web_lg
-#nlp = en_core_web_lg.load()
 
 from ErrorClassifier import ERROR_TYPES, tokenize, tokenize_pure_words
 
-word_freqs = {}
+def main():
+    global word_freqs, replace_model, arrange_model
+    prediction_freq = [0, 0]
+    error_correct = {k: 0 for k in ERROR_TYPES}
+    error_freq = {k: 0 for k in ERROR_TYPES}
 
+    word_freqs = {}
+    # loads model data
+    load_word_frequencies()
+    replace_model = load_replace_neural_network()
+    arrange_model = load_arrange_neural_network()
+
+    with open(FILE_NAME + '.txt', encoding='utf-8') as file, open(FILE_NAME + '.spacy.txt') as file_tags:
+        progress = 0
+        start_time = time.time()
+        lines_processed = 0
+        words_processed = 0
+        for line in file:
+            progress += 1
+            line_tag = file_tags.readline().strip()
+            if not (TESTING_RANGE[0] < progress <= TESTING_RANGE[1]):
+                continue
+
+            line = line.strip()
+            line = unicodedata.normalize('NFKD', line)
+            p1, p2 = line.split('\t')
+            tags1, tags2 = line_tag.split('\t')
+
+            # Randomly scramble to verify symmetry of the methods
+            scrambled = random.random() > 0.5
+            if scrambled:
+                p1, p2 = p2, p1
+                tags1, tags2 = tags2, tags1
+            error_type = ErrorClassifier.classify_error_labeled(p1, p2)
+            tokens1, tokens2 = tokenize(p1, p2)
+            answer = solve(tokens1, tokens2, error_type, tags1, tags2)
+            if scrambled:
+                answer = 1 - answer
+
+            prediction_freq[answer] += 1
+            if answer == 0:
+                error_correct[error_type] += 1
+            error_freq[error_type] += 1
+
+            # Display progression in number of samples processed, use random to avoid too many (slow) interactions w/
+            # console
+            words_processed += len(p1.split()) + len(p2.split())
+            lines_processed += 1
+            if progress % 100 == 0:
+                print('\rProgress: [{}] Word Processed: [{}] Words per second: [{}] Lines per second: [{}]'
+                      .format(lines_processed, words_processed,
+                              words_processed / (time.time() - start_time),
+                              (lines_processed / (time.time() - start_time)))
+                      , end='')
+
+    print(prediction_freq)
+    print(error_correct)
+    print(error_freq)
 
 def load_word_frequencies():
     with open('learned_frequencies.csv') as file:
@@ -36,10 +91,12 @@ def eval_largest(n1, n2):
     else:
         return 1
 
+
 def load_arrange_neural_network():
     model = create_arrange_nn_model()
     model.load_weights(PATH_ARRANGE_CHECKPOINT)
     return model
+
 
 def solve_arrange(tokens1, tokens2, tags1, tags2):
     tags1 = tags1.split()
@@ -67,7 +124,7 @@ def solve_add(tokens1, tokens2, tags1, tags2):
 
 def solve_remove(tokens1, tokens2, tags1, tags2):
     # default behavior, return the larger one (removal of tokens from larger one is common)
-    return 0 # functionally identical to the commented out version
+    return 0  # functionally identical to the commented out version
     # return eval_largest(len(tokens1), len(tokens2))
 
 
@@ -109,11 +166,13 @@ def evaluate_average_delta_similarity(delta, start, end):
         total += delta.similarity(t) if t.has_vector else 0
     return total
 
+
 def load_replace_neural_network():
     model = create_replace_nn_model()
     model.load_weights(PATH_REPLACE_CHECKPOINT)
     return model
     # return keras.models.load_model('replace.h5')
+
 
 def solve_replace(tokens1, tokens2, tags1, tags2):
     # Simplest method, simply compare word similarity vectors
@@ -148,10 +207,10 @@ def solve_replace(tokens1, tokens2, tags1, tags2):
             ids_en = [0]
 
         input_start = ids_st
-        input_en    = ids_en
+        input_en = ids_en
 
-        input_d1    = [ids_d1[0]]
-        input_d2    = [ids_d2[0]]
+        input_d1 = [ids_d1[0]]
+        input_d2 = [ids_d2[0]]
 
         x1 = [np.array([input_start]), np.array([input_en]), np.array([input_d1])]
         x2 = [np.array([input_start]), np.array([input_en]), np.array([input_d2])]
@@ -165,66 +224,9 @@ def solve_replace(tokens1, tokens2, tags1, tags2):
         return eval_largest(y1.item(), y2.item())
 
 
-
-
 def solve(tokens1, tokens2, error_type, tags1, tags2):
     return globals()['solve_' + error_type.lower()](tokens1, tokens2, tags1, tags2)
 
 
-prediction_freq = [0, 0]
-error_correct = {k: 0 for k in ERROR_TYPES}
-error_freq = {k: 0 for k in ERROR_TYPES}
-
-TESTING_RANGE = (900000, 1000000)
-
-# loads model data
-load_word_frequencies()
-replace_model = load_replace_neural_network()
-arrange_model = load_arrange_neural_network()
-
-with open(FILE_NAME + '.txt', encoding='utf-8') as file, open(FILE_NAME + '.spacy.txt') as file_tags:
-
-    progress = 0
-    start_time = time.time()
-    lines_processed = 0
-    words_processed = 0
-    for line in file:
-        progress += 1
-        line_tag = file_tags.readline().strip()
-        if not (TESTING_RANGE[0] < progress <= TESTING_RANGE[1]):
-            continue
-
-        line = line.strip()
-        line = unicodedata.normalize('NFKD', line)
-        p1, p2 = line.split('\t')
-        tags1, tags2 = line_tag.split('\t')
-
-        # Randomly scramble to verify symmetry of the methods
-        scrambled = random.random() > 0.5
-        if scrambled:
-            p1, p2 = p2, p1
-            tags1, tags2 = tags2, tags1
-        error_type = ErrorClassifier.classify_error_labeled(p1, p2)
-        tokens1, tokens2 = tokenize(p1, p2)
-        answer = solve(tokens1, tokens2, error_type, tags1, tags2)
-        if scrambled:
-            answer = 1 - answer
-
-        prediction_freq[answer] += 1
-        if answer == 0:
-            error_correct[error_type] += 1
-        error_freq[error_type] += 1
-
-        # Display progression in number of samples processed, use random to avoid too many (slow) interactions w/
-        # console
-        words_processed += len(p1.split()) + len(p2.split())
-        lines_processed += 1
-        if progress % 100 == 0:
-            print('\rProgress: [{}] Word Processed: [{}] Words per second: [{}] Lines per second: [{}]'
-                  .format(lines_processed, words_processed,
-                          words_processed / (time.time() - start_time), (lines_processed / (time.time() - start_time)))
-                  , end='')
-
-print(prediction_freq)
-print(error_correct)
-print(error_freq)
+if __name__ == '__main__':
+    main()
