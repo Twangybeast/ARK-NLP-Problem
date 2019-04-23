@@ -41,6 +41,8 @@ def load_arrange_neural_network():
     return model
 
 def solve_arrange(tokens1, tokens2, tags1, tags2):
+    tags1 = tags1.split()
+    tags2 = tags2.split()
 
     ids1 = list(map(lambda tag: tags_to_id[tag], tags1))
     ids2 = list(map(lambda tag: tags_to_id[tag], tags2))
@@ -185,6 +187,7 @@ with open(FILE_NAME + '.txt', encoding='utf-8') as file, open(FILE_NAME + '.spac
 
     progress = 0
     start_time = time.time()
+    lines_processed = 0
     words_processed = 0
     for line in file:
         progress += 1
@@ -197,9 +200,16 @@ with open(FILE_NAME + '.txt', encoding='utf-8') as file, open(FILE_NAME + '.spac
         p1, p2 = line.split('\t')
         tags1, tags2 = line_tag.split('\t')
 
+        # Randomly scramble to verify symmetry of the methods
+        scrambled = random.random() > 0.5
+        if scrambled:
+            p1, p2 = p2, p1
+            tags1, tags2 = tags2, tags1
         error_type = ErrorClassifier.classify_error_labeled(p1, p2)
         tokens1, tokens2 = tokenize(p1, p2)
         answer = solve(tokens1, tokens2, error_type, tags1, tags2)
+        if scrambled:
+            answer = 1 - answer
 
         prediction_freq[answer] += 1
         if answer == 0:
@@ -209,10 +219,11 @@ with open(FILE_NAME + '.txt', encoding='utf-8') as file, open(FILE_NAME + '.spac
         # Display progression in number of samples processed, use random to avoid too many (slow) interactions w/
         # console
         words_processed += len(p1.split()) + len(p2.split())
+        lines_processed += 1
         if progress % 100 == 0:
             print('\rProgress: [{}] Word Processed: [{}] Words per second: [{}] Lines per second: [{}]'
-                  .format(progress, words_processed, \
-                          words_processed / (time.time() - start_time), (progress / (time.time() - start_time)))
+                  .format(lines_processed, words_processed,
+                          words_processed / (time.time() - start_time), (lines_processed / (time.time() - start_time)))
                   , end='')
 
 print(prediction_freq)
