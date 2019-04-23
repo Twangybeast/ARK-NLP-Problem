@@ -22,7 +22,7 @@ ENABLE_LEARN_EMBEDDING = True
 ENABLE_TRAIN_REPLACE_NN = True
 TRAIN_FROM_DISK_REPLACE = True
 
-ENABLE_TRAIN_ARRANGE_NN = True  # True when we want to train the ARRANGE neural network
+ENABLE_TRAIN_ARRANGE_NN = False  # True when we want to train the ARRANGE neural network
 ENABLE_PROCESS_ARRANGE_DATA = False # True when we want to process the original .txt file for the dataset
 
 ONLY_TRAIN_NN = True
@@ -166,16 +166,19 @@ def create_replace_nn_model(max_start, max_end):
     x_e = embedding(input_end)
     x_d = embedding(input_delta)
 
+    x_s = tf.keras.layers.CuDNNLSTM(20, return_sequences=True)(x_s)
     x_s = tf.keras.layers.CuDNNLSTM(20)(x_s)
-    x_e = tf.keras.layers.CuDNNLSTM(20, go_backwards=False)(
-        x_e)  # converge such that last input is closest to the delta
+    x_e = tf.keras.layers.CuDNNLSTM(20, return_sequences=True, go_backwards=False)(x_e)
+    x_e = tf.keras.layers.CuDNNLSTM(20, go_backwards=False)(x_e)
 
     x_se = tf.keras.layers.concatenate([x_s, x_e])
+    x_se = tf.keras.layers.Dense(20, activation=tf.nn.relu)(x_se)
     x_se = tf.keras.layers.Dense(20, activation=tf.nn.tanh)(x_se)
 
     x_d = tf.keras.layers.Flatten()(x_d)
 
     x = tf.keras.layers.concatenate([x_se, x_d])
+    x = tf.keras.layers.Dense(20, activation=tf.nn.relu)(x)
     x = tf.keras.layers.Dense(20, activation=tf.nn.tanh)(x)
     output = tf.keras.layers.Dense(1, activation=tf.nn.sigmoid)(x)
 
@@ -186,11 +189,11 @@ def create_arrange_nn_model(max_length):
     input = tf.keras.layers.Input(shape=(max_length,), dtype=tf.int32)
 
     # input vocab is only 56 words
-    x = tf.keras.layers.Embedding(output_dim=20, input_dim=len(tags_to_id) + 1)(input)
+    x = tf.keras.layers.Embedding(output_dim=30, input_dim=len(tags_to_id) + 1)(input)
 
-    x = tf.keras.layers.CuDNNLSTM(10, return_sequences=True)(x)
-    x = tf.keras.layers.CuDNNLSTM(10)(x)
-    x = tf.keras.layers.Dense(10, activation=tf.nn.tanh)(x)
+    x = tf.keras.layers.CuDNNLSTM(20, return_sequences=True)(x)
+    x = tf.keras.layers.CuDNNLSTM(20)(x)
+    x = tf.keras.layers.Dense(20, activation=tf.nn.tanh)(x)
 
     output = tf.keras.layers.Dense(1, activation=tf.nn.sigmoid)(x)
 
@@ -288,7 +291,7 @@ if __name__ == '__main__':
         validation_dataset = validation_dataset.batch(1000)
         validation_dataset = validation_dataset.repeat()
 
-        BATCH_SIZE = 1024
+        BATCH_SIZE = 1024 * 4
         dataset = dataset.batch(BATCH_SIZE)
         dataset.shuffle(10000)
         dataset.shuffle(10000)
@@ -304,10 +307,10 @@ if __name__ == '__main__':
         print(dataset.output_shapes)
         print(dataset.output_types)
 
-        checkpoint_path = 'checkpoints/%s_replace.ckpt' % FILE_NAME
+        checkpoint_path = 'checkpoints/%s_replace_w0_d1.ckpt' % FILE_NAME
         cp_callback = tf.keras.callbacks.ModelCheckpoint(checkpoint_path, save_weights_only=True, save_best_only=False, verbose=1)
 
-        # model.load_weights(checkpoint_path)
+        model.load_weights(checkpoint_path)
         # model.save('replace.h5')
         model.fit(dataset, steps_per_epoch=50, epochs=200, verbose=2, validation_data=validation_dataset, validation_steps=1, callbacks=[cp_callback])
     if ENABLE_TRAIN_ARRANGE_NN:
@@ -368,10 +371,10 @@ if __name__ == '__main__':
         print(dataset.output_types)
 
 
-        checkpoint_path = 'checkpoints/%s_arrange.ckpt' % FILE_NAME
+        checkpoint_path = 'checkpoints/%s_arrange_w1_d0.ckpt' % FILE_NAME
         cp_callback = tf.keras.callbacks.ModelCheckpoint(checkpoint_path, save_weights_only=True, save_best_only=False, verbose=1)
 
-        # model.load_weights(checkpoint_path)
+        model.load_weights(checkpoint_path)
         model.fit(dataset, steps_per_epoch=50, epochs=200, verbose=2, validation_data=validation_dataset,
                   validation_steps=1, callbacks=[cp_callback])
 

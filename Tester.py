@@ -37,7 +37,7 @@ def eval_largest(n1, n2):
 
 def load_arrange_neural_network():
     model = create_arrange_nn_model(None)
-    model.load_weights('checkpoints/%s_arrange.ckpt' % FILE_NAME)
+    model.load_weights('checkpoints/%s_arrange_w1_d0.ckpt' % FILE_NAME)
     return model
 
 def solve_arrange(tokens1, tokens2, tags1, tags2):
@@ -110,7 +110,7 @@ def evaluate_average_delta_similarity(delta, start, end):
 
 def load_replace_neural_network():
     model = create_replace_nn_model(None, None)
-    model.load_weights('checkpoints/%s_replace.ckpt' % FILE_NAME)
+    model.load_weights('checkpoints/%s_replace_w0_d1.ckpt' % FILE_NAME)
     return model
     # return keras.models.load_model('replace.h5')
 
