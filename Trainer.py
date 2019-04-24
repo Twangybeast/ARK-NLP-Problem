@@ -11,6 +11,7 @@ from tensorflow import keras
 
 import ErrorClassifier
 from ErrorClassifier import ERROR_TYPES, tokenize_pure_words
+from NNModels import create_nn_model
 
 # Only can learn when the learned_words.txt file is empty
 ENABLE_LEARN_WORDS = False
@@ -80,54 +81,6 @@ def main():
         train_arrange_nn()
 
 
-def create_replace_nn_model():
-    input_start = tf.keras.layers.Input(shape=(None,), dtype=tf.int32, name='start')
-    input_end = tf.keras.layers.Input(shape=(None,), dtype=tf.int32, name='end')
-    input_delta = tf.keras.layers.Input(shape=(1,), dtype=tf.int32, name='delta')
-
-    # input vocab is only 56 words
-    embedding = tf.keras.layers.Embedding(output_dim=30, input_dim=len(tags_to_id) + 1)
-
-    x_s = embedding(input_start)
-    x_e = embedding(input_end)
-    x_d = embedding(input_delta)
-
-    x_s = tf.keras.layers.CuDNNLSTM(20, return_sequences=True)(x_s)
-    x_s = tf.keras.layers.CuDNNLSTM(20)(x_s)
-    x_e = tf.keras.layers.CuDNNLSTM(20, return_sequences=True, go_backwards=False)(x_e)
-    x_e = tf.keras.layers.CuDNNLSTM(20, go_backwards=False)(x_e)
-
-    x_se = tf.keras.layers.concatenate([x_s, x_e])
-    x_se = tf.keras.layers.Dense(20, activation=tf.nn.relu)(x_se)
-    x_se = tf.keras.layers.Dense(20, activation=tf.nn.tanh)(x_se)
-
-    x_d = tf.keras.layers.Flatten()(x_d)
-
-    x = tf.keras.layers.concatenate([x_se, x_d])
-    x = tf.keras.layers.Dense(20, activation=tf.nn.relu)(x)
-    x = tf.keras.layers.Dense(20, activation=tf.nn.tanh)(x)
-    output = tf.keras.layers.Dense(1, activation=tf.nn.sigmoid)(x)
-
-    model = tf.keras.Model(inputs=[input_start, input_end, input_delta], outputs=output)
-    return model
-
-
-def create_arrange_nn_model():
-    input = tf.keras.layers.Input(shape=(None,), dtype=tf.int32)
-
-    # input vocab is only 56 words
-    x = tf.keras.layers.Embedding(output_dim=30, input_dim=len(tags_to_id) + 1)(input)
-
-    x = tf.keras.layers.CuDNNLSTM(20, return_sequences=True)(x)
-    x = tf.keras.layers.CuDNNLSTM(20)(x)
-    x = tf.keras.layers.Dense(20, activation=tf.nn.tanh)(x)
-
-    output = tf.keras.layers.Dense(1, activation=tf.nn.sigmoid)(x)
-
-    model = tf.keras.Model(inputs=input, outputs=output)
-    return model
-
-
 def train_replace_nn():
     # create the dataset
     max_start = 0
@@ -174,7 +127,7 @@ def train_replace_nn():
     dataset, validation_dataset = prepare_dataset(dataset, samples, batch_size=1024 * 4)
 
     # Create the model
-    model = create_replace_nn_model()
+    model = create_nn_model('replace')
     model.compile(optimizer=tf.train.AdamOptimizer(), loss='binary_crossentropy', metrics=['accuracy'])
 
     print(model.summary())
@@ -223,7 +176,7 @@ def train_arrange_nn():
 
     dataset, validation_dataset = prepare_dataset(dataset, samples)
 
-    model = create_arrange_nn_model()
+    model = create_nn_model('arrange')
     model.compile(optimizer=tf.train.AdamOptimizer(), loss='binary_crossentropy', metrics=['accuracy'])
 
     print(model.summary())
