@@ -15,6 +15,7 @@ from tensorflow import keras
 
 from ErrorClassifier import ERROR_TYPES, tokenize, tokenize_pure_words
 
+
 def main():
     global word_freqs, replace_model, arrange_model
     prediction_freq = [0, 0]
@@ -73,6 +74,7 @@ def main():
     print(prediction_freq)
     print(error_correct)
     print(error_freq)
+
 
 def load_word_frequencies():
     with open('learned_frequencies.csv') as file:

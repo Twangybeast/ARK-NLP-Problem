@@ -4,13 +4,10 @@ import random
 import time
 import unicodedata
 
-# import en_core_web_lg
-# nlp = en_core_web_lg.load()
 from functools import reduce
 
 import tensorflow as tf
 from tensorflow import keras
-# tf.enable_eager_execution()
 
 import ErrorClassifier
 from ErrorClassifier import ERROR_TYPES, tokenize_pure_words
@@ -63,8 +60,8 @@ def main():
                 error_type = ErrorClassifier.classify_error_labeled(p1, p2)
                 train(p1, p2, error_type, t1, t2)
 
-                # Display progression in number of samples processed, use random to avoid too many (slow) interactions w/
-                # console
+                # Display progression in number of samples processed, use random to avoid too many (slow)
+                # interactions w/ console
                 words_processed += len(p1.split()) + len(p2.split())
                 if progress % 100 == 0:
                     print('\rProgress: [{}] Word Processed: [{}] Words per second: [{}] Lines per second: [{}]'
