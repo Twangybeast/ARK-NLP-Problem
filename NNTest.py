@@ -75,11 +75,30 @@ def train_network1():
         start = tf.sparse.to_dense(sequence['s'])
         end   = tf.sparse.to_dense(sequence['e'])
         return {'start': start, 'end': end,'delta1':context['d1'], 'delta2':context['d2']}
+    def add_label(x):
+        start = x['start']
+        end   = x['end']
+        d1 = x['delta1']
+        d2 = x['delta2']
+
+        # doubles the batch size, with the second half switching the deltas and reversing the label
+        start = tf.concat([start, start], axis=0)
+        end   = tf.concat([end, end], axis=0)
+        delta1 = tf.concat([d1, d2], axis=0)
+        delta2 = tf.concat([d2, d1], axis=0)
+
+        y1 = tf.fill(tf.gather(tf.shape(x), 0), 0.)
+        y2 = tf.fill(tf.gather(tf.shape(x), 0), 1.)
+        y = tf.concat(y1, y2, axis=0)
+        return {'start': start, 'end': end, 'delta1':delta1, 'delta2':delta2}, y
+
+
     dataset = tf.data.TFRecordDataset(PATH_TFRECORD_REPLACE1)
     dataset = dataset.map(decode, num_parallel_calls=8)
     dataset = dataset.shuffle(100000, seed=123)
-    dataset = dataset.padded_batch(1024, {'start': (None, 300), 'end': (None, None), 'delta1': (None,), 'delta2': (None,)})
-    dataset = dataset.prefetch(1024)
+    dataset = dataset.padded_batch(1024/2, {'start': (None, 300), 'end': (None, None), 'delta1': (None,), 'delta2': (None,)})
+    dataset = dataset.prefetch(1024/2)
+    dataset = dataset.map(add_label, num_parallel_calls=8)
 
     # dataset.shuffle(1000, seed=123)
     validation_dataset = dataset.take(10)
