@@ -6,24 +6,13 @@ import unicodedata
 from enum import Enum
 from functools import reduce
 
+from TokenHelper import tokenize, tokenize_pure_words, find_delta_from_tokens
+from TokenHelper import nlp_tokenizer
+
 import Levenshtein
-import spacy
-nlp_tokenizer = spacy.load('en_core_web_lg', disable=['tagger', 'parser', 'ner'])
 
 
 ERROR_TYPES = ['ARRANGE', 'ADD', 'REMOVE', 'TYPO', 'REPLACE']
-
-
-def tokenize(p1, p2):
-    t1 = nlp_tokenizer(p1)
-    t2 = nlp_tokenizer(p2)
-    return t1, t2
-
-
-def tokenize_pure_words(part):
-    part = re.sub('[^a-zA-Z0-9 ]', ' ', part).lower()
-    words = part.split()
-    return words
 
 
 def generate_word_set(tokens):
@@ -62,29 +51,6 @@ def freq_to_list(d):
         for i in range(d[k]):
             res.append(k)
     return res
-
-
-def find_all_delta_from_tokens(t1, t2):
-    starting_match = 0
-    for i in range(min(len(t1), len(t2))):
-        if str(t1[i]) != str(t2[i]):
-            starting_match = i
-            break
-
-    ending_match = 0
-    for i in range(min(len(t1), len(t2))):
-        if str(t1[-i - 1]) != str(t2[-i - 1]):
-            ending_match = i
-            break
-
-    start = t1[:starting_match]
-    end = t1[len(t1) - ending_match:]
-    return t1[starting_match:len(t1) - ending_match], t2[starting_match:len(t2) - ending_match], start, end
-
-
-def find_delta_from_tokens(t1, t2):
-    delta1, delta2, _, _ = find_all_delta_from_tokens(t1, t2)
-    return delta1, delta2
 
 
 def load_words_list():

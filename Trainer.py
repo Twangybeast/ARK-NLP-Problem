@@ -10,7 +10,9 @@ import tensorflow as tf
 from tensorflow import keras
 
 import ErrorClassifier
-from ErrorClassifier import ERROR_TYPES, tokenize_pure_words
+from TokenHelper import tokenize, tokenize_pure_words, find_all_delta_from_tokens
+from NeuralNetworkHelper import PATH_REPLACE_CHECKPOINT, PATH_ARRANGE_CHECKPOINT, FILE_NAME, TESTING_RANGE
+from NeuralNetworkHelper import tags_to_id
 from NNModels import create_nn_model
 
 # Only can learn when the learned_words.txt file is empty
@@ -27,15 +29,10 @@ ENABLE_LOAD_ARRANGE_WEIGHTS = True
 
 ONLY_TRAIN_NN = False
 
-FILE_NAME = 'train'
-
-PATH_REPLACE_CHECKPOINT = 'checkpoints/%s_replace_w0_d1.ckpt' % FILE_NAME
-PATH_ARRANGE_CHECKPOINT = 'checkpoints/%s_arrange_w1_d0.ckpt' % FILE_NAME
 
 PATH_REPLACE_DATA = FILE_NAME + '.replace.txt'
 PATH_ARRANGE_DATA = FILE_NAME + '.arrange.txt'
 
-TESTING_RANGE = (900000, 1000000)
 
 
 def main():
@@ -237,24 +234,13 @@ def save_word_frequencies():
                 csv_writer.writerow([word, freq])
 
 
-def load_tags_to_id():
-    tags_to_id = {}
-    with open('spacy_tags.txt') as tags_list:
-        id = 1
-        for line in tags_list:
-            tag = line.strip()
-            tags_to_id[tag] = id
-            id += 1
-    return tags_to_id
-
-
 test1 = 0
 test2 = 0
 
 
 def prepare_replace_tags(part1, part2, tags1, tags2):
     global test1, test2
-    tokens1, tokens2 = ErrorClassifier.tokenize(part1, part2)
+    tokens1, tokens2 = tokenize(part1, part2)
     tags1 = tags1.split()
     tags2 = tags2.split()
     assert len(tokens1) == len(tags1)
@@ -266,7 +252,7 @@ def prepare_replace_tags(part1, part2, tags1, tags2):
     for i in range(len(tokens2)):
         tag_map[tokens2[i]] = tags2[i]
 
-    delta1, delta2, start, end = ErrorClassifier.find_all_delta_from_tokens(tokens1, tokens2)
+    delta1, delta2, start, end = find_all_delta_from_tokens(tokens1, tokens2)
 
     ids_d1 = list(map(lambda token: tags_to_id[tag_map[token]], delta1))
     ids_d2 = list(map(lambda token: tags_to_id[tag_map[token]], delta2))
@@ -310,8 +296,6 @@ def train(p1, p2, error_type, t1, t2):
     if ENABLE_TRAIN_ARRANGE_NN and ENABLE_PROCESS_ARRANGE_DATA and error_type == 'ARRANGE':
         prepare_arrange_tags(t1, t2)
 
-
-tags_to_id = load_tags_to_id()
 
 if __name__ == '__main__':
     learned_words = set()

@@ -17,6 +17,7 @@ PATH_TFRECORD_REPLACE = FILE_NAME + '1.replace.tfrecord'
 # The search for the best REPLACE neural network
 # Numbered by version
 
+
 def main():
     train_network1()
 
