@@ -1,10 +1,6 @@
 import csv
-import os
-import random
 import time
 import unicodedata
-
-from functools import reduce
 
 import tensorflow as tf
 from tensorflow import keras
@@ -18,21 +14,24 @@ from NNModels import create_nn_model
 # Only can learn when the learned_words.txt file is empty
 ENABLE_LEARN_WORDS = False
 
+# True when we want to train the respective neural network
 ENABLE_TRAIN_REPLACE_NN = True
-ENABLE_TRAIN_ARRANGE_NN = False  # True when we want to train the ARRANGE neural network
+ENABLE_TRAIN_ARRANGE_NN = False
 
+# True when we want to rebuild the saved data file for the neural network, using data from the "original" training file
 ENABLE_PROCESS_REPLACE_DATA = True
-ENABLE_PROCESS_ARRANGE_DATA = False  # True when we want to process the original .txt file for the dataset
+ENABLE_PROCESS_ARRANGE_DATA = False
 
+# True when we want to reload the saved weights of the neural network
 ENABLE_LOAD_REPLACE_WEIGHTS = True
 ENABLE_LOAD_ARRANGE_WEIGHTS = True
 
+# True when we want to skip IO with the original file (only will use IO with the neural network training data)
 ONLY_TRAIN_NN = False
 
-
+# Path of the neural network training data
 PATH_REPLACE_DATA = FILE_NAME + '.replace.txt'
 PATH_ARRANGE_DATA = FILE_NAME + '.arrange.txt'
-
 
 
 def main():

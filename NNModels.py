@@ -93,5 +93,40 @@ def create_replace1_nn_model():
     return model
 
 
+def create_replace2_nn_model():
+    input_part1 = keras.layers.Input(shape=(None,300), dtype=tf.float32, name='part1')
+    input_part2 = keras.layers.Input(shape=(None,300), dtype=tf.float32, name='part2')
+
+    # Cannot do masking while unknown word vectors default to 0.
+    # masking = keras.layers.Masking(0.)
+    # input_start = masking(input_start)
+    # input_end   = masking(input_end)
+
+    # reduce dimensions of word vectors
+    dense_reduce_dim = keras.layers.TimeDistributed(keras.layers.Dense(50, activation=tf.nn.tanh))
+    x1 = dense_reduce_dim(input_part1)
+    x2 = dense_reduce_dim(input_part2)
+
+    # LSTM, recurrent natures
+    lstm1 = keras.layers.CuDNNLSTM(20, return_sequences=True)
+    x1 = lstm1(x1)
+    x2 = lstm1(x2)
+
+    # merge layer
+    x = keras.layers.concatenate([x1, x2], axis=-2)
+
+    # LSTMs with merged inputs
+    x = keras.layers.CuDNNLSTM(20)(x)
+
+    # Final dense layers
+    x = keras.layers.Dense(20, activation=tf.nn.tanh)(x)
+    x = keras.layers.Dense(1, activation=tf.nn.sigmoid)(x)
+
+    output = x
+
+    model = tf.keras.Model(inputs=[input_part1, input_part2], outputs=output)
+    return model
+
+
 def create_nn_model(name):
     return globals()['create_%s_nn_model' % name]()

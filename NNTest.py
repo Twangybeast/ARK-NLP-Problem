@@ -2,7 +2,7 @@ import tensorflow as tf
 from tensorflow import keras
 
 from Trainer import FILE_NAME, PATH_REPLACE_DATA, prepare_dataset
-from ErrorClassifier import tokenize, find_all_delta_from_tokens
+from TokenHelper import tokenize, find_all_delta_from_tokens
 from NNModels import create_nn_model
 
 ENABLE_LOAD_CHECKPOINT = False
@@ -119,41 +119,6 @@ def train_network1():
               validation_steps=1, callbacks=[cp_callback])
 
 
-def create_network2():
-    input_part1 = keras.layers.Input(shape=(None,300), dtype=tf.float32, name='part1')
-    input_part2 = keras.layers.Input(shape=(None,300), dtype=tf.float32, name='part2')
-
-    # Cannot do masking while unknown word vectors default to 0.
-    # masking = keras.layers.Masking(0.)
-    # input_start = masking(input_start)
-    # input_end   = masking(input_end)
-
-    # reduce dimensions of word vectors
-    dense_reduce_dim = keras.layers.TimeDistributed(keras.layers.Dense(50, activation=tf.nn.tanh))
-    x1 = dense_reduce_dim(input_part1)
-    x2 = dense_reduce_dim(input_part2)
-
-    # LSTM, recurrent natures
-    lstm1 = keras.layers.CuDNNLSTM(20, return_sequences=True)
-    x1 = lstm1(x1)
-    x2 = lstm1(x2)
-
-    # merge layer
-    x = keras.layers.concatenate([x1, x2], axis=-2)
-
-    # LSTMs with merged inputs
-    x = keras.layers.CuDNNLSTM(20)(x)
-
-    # Final dense layers
-    x = keras.layers.Dense(20, activation=tf.nn.tanh)(x)
-    x = keras.layers.Dense(1, activation=tf.nn.sigmoid)(x)
-
-    output = x
-
-    model = tf.keras.Model(inputs=[input_part1, input_part2], outputs=output)
-    return model
-
-
 def train_network2():
     def decode(serialized):
         sequence_features = {
@@ -198,7 +163,7 @@ def train_network2():
     validation_dataset = dataset.take(10)
 
     # Create the model
-    model = create_network2()
+    model = create_nn_model('replace2')
     model.compile(optimizer=tf.train.AdamOptimizer(), loss='binary_crossentropy', metrics=['accuracy'])
 
     print(model.summary())

@@ -6,14 +6,10 @@ import unicodedata
 import numpy as np
 
 import ErrorClassifier
+from ErrorClassifier import ERROR_TYPES, tokenize, tokenize_pure_words
 from NeuralNetworkHelper import PATH_REPLACE_CHECKPOINT, PATH_ARRANGE_CHECKPOINT, FILE_NAME, TESTING_RANGE
 from NeuralNetworkHelper import tags_to_id
 from NNModels import create_nn_model
-
-import tensorflow as tf
-from tensorflow import keras
-
-from ErrorClassifier import ERROR_TYPES, tokenize, tokenize_pure_words
 
 
 def main():
@@ -44,7 +40,7 @@ def main():
             p1, p2 = line.split('\t')
             tags1, tags2 = line_tag.split('\t')
 
-            # Randomly scramble to verify symmetry of the methods
+            # Randomly scramble to verify symmetry of the prediction algorithm
             scrambled = random.random() > 0.5
             if scrambled:
                 p1, p2 = p2, p1
@@ -70,9 +66,12 @@ def main():
                               words_processed / (time.time() - start_time),
                               (lines_processed / (time.time() - start_time)))
                       , end='')
-
+    # Returns the frequency of predicting the first or second one
     print(prediction_freq)
+    # Prints the number of lines which predicted the first part as the original (same as the number of correct
+    # answers when using train.txt), segmented by the error type
     print(error_correct)
+    # Prints the distribution of the types of errors
     print(error_freq)
 
 
@@ -85,6 +84,8 @@ def load_word_frequencies():
             word_freqs[word] = freq
 
 
+# Returns 0 or 1, corresponding to if the first or second one is the original text, given two numbers representing
+# the scores of each part (higher is better). Defaults to random when the scores are equal
 def eval_largest(n1, n2):
     if n1 == n2:
         return int(random.random() * 2)  # default to random
@@ -147,10 +148,11 @@ def solve_typo(tokens1, tokens2, tags1, tags2):
         # don't bother using an average
         return total
 
-    # Assume the one with higher frequencies is correct
+    # Assume the one with higher frequencies (more common words) is correct
     return eval_largest(calc_freq_sum(w1), calc_freq_sum(w2))
 
 
+# Checks if every token in the given iterable of tokens has a vector
 def check_all_has_vectors(doc):
     for d in doc:
         if not d.has_vector:
@@ -158,6 +160,7 @@ def check_all_has_vectors(doc):
     return True
 
 
+# Determine how similar the delta token is to the other tokens, returning the sum of the similarity values
 def evaluate_average_delta_similarity(delta, start, end):
     if not delta.has_vector:
         return 0
