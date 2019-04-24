@@ -14,18 +14,17 @@ from ErrorClassifier import ERROR_TYPES, tokenize_pure_words
 
 # Only can learn when the learned_words.txt file is empty
 ENABLE_LEARN_WORDS = False
-ENABLE_LEARN_EMBEDDING = True
 
 ENABLE_TRAIN_REPLACE_NN = True
 ENABLE_TRAIN_ARRANGE_NN = False  # True when we want to train the ARRANGE neural network
 
-ENABLE_PROCESS_REPLACE_DATA = False
+ENABLE_PROCESS_REPLACE_DATA = True
 ENABLE_PROCESS_ARRANGE_DATA = False  # True when we want to process the original .txt file for the dataset
 
 ENABLE_LOAD_REPLACE_WEIGHTS = True
 ENABLE_LOAD_ARRANGE_WEIGHTS = True
 
-ONLY_TRAIN_NN = True
+ONLY_TRAIN_NN = False
 
 FILE_NAME = 'train'
 
@@ -147,7 +146,7 @@ def train_replace_nn():
                 file_replace.write(' '.join(map(str, train_end[i])) + '\t')
                 file_replace.write(str(train_delta1[i][0]) + '\t')
                 file_replace.write(str(train_delta2[i][0]) + '\n')
-
+    quit()
     def replace_nn_generator():
         with open(PATH_REPLACE_DATA) as file_replace:
             file_replace.readline()

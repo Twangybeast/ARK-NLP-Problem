@@ -77,7 +77,7 @@ def find_all_delta_from_tokens(t1, t2):
             ending_match = i
             break
 
-    start = t1[:starting_match];
+    start = t1[:starting_match]
     end = t1[len(t1) - ending_match:]
     return t1[starting_match:len(t1) - ending_match], t2[starting_match:len(t2) - ending_match], start, end
 

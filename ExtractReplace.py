@@ -62,22 +62,16 @@ def main():
 
 
 def train_replace_nn():
-    # create the dataset
-    max_start = 0
-    max_end = 0
-    samples = 0
     # saves the data to a file
     assert len(train_delta1) == len(train_delta2) == len(train_start) == len(train_end)
-    max_start = len(max(train_start, key=len))
-    max_end = len(max(train_end, key=len))
     samples = len(train_delta1)
-    with open(FILE_NAME+'.replace.original.txt', 'x') as file_replace:
-        file_replace.write('{} {} {}\n'.format(max_start, max_end, samples))
+    with open(FILE_NAME+'.replace.original.txt', 'x', encoding='utf-8') as file_replace:
+        file_replace.write('{}\n'.format(samples))
         for i in range(samples):
             file_replace.write(train_start[i] + '\t')
             file_replace.write(train_end[i] + '\t')
-            file_replace.write(str(train_delta1[i][0]) + '\t')
-            file_replace.write(str(train_delta2[i][0]) + '\n')
+            file_replace.write(str(train_delta1[i]) + '\t')
+            file_replace.write(str(train_delta2[i]) + '\n')
 
 
 def prepare_replace_tags(part1, part2, tags1, tags2):
@@ -98,7 +92,8 @@ def prepare_replace_tags(part1, part2, tags1, tags2):
 
 
 def train(p1, p2, error_type, t1, t2):
-    prepare_replace_tags(p1, p2, t1, t2)
+    if error_type == 'REPLACE':
+        prepare_replace_tags(p1, p2, t1, t2)
 
 
 if __name__ == '__main__':
