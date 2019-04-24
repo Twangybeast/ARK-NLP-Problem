@@ -6,7 +6,7 @@ import unicodedata
 import numpy as np
 
 import ErrorClassifier
-from ErrorClassifier import ERROR_TYPES, tokenize, tokenize_pure_words
+from TokenHelper import tokenize, tokenize_pure_words
 from NeuralNetworkHelper import PATH_REPLACE_CHECKPOINT, PATH_ARRANGE_CHECKPOINT, FILE_NAME, TESTING_RANGE
 from NeuralNetworkHelper import tags_to_id
 from NNModels import create_nn_model
@@ -15,8 +15,8 @@ from NNModels import create_nn_model
 def main():
     global word_freqs, replace_model, arrange_model
     prediction_freq = [0, 0]
-    error_correct = {k: 0 for k in ERROR_TYPES}
-    error_freq = {k: 0 for k in ERROR_TYPES}
+    error_correct = {k: 0 for k in ErrorClassifier.ERROR_TYPES}
+    error_freq = {k: 0 for k in ErrorClassifier.ERROR_TYPES}
 
     word_freqs = {}
     # loads model data
