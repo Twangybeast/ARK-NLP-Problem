@@ -187,17 +187,16 @@ def train_arrange_nn():
 
 
 def prepare_dataset(dataset, samples, batch_size=1024, seed=123, validation_proportion=0.1):
-    dataset = dataset.repeat()
     dataset = dataset.shuffle(1000, seed=seed)
 
     validation_dataset = dataset.take(int(samples * validation_proportion))  # 10% used for validation
     validation_dataset = validation_dataset.batch(1000)
     validation_dataset = validation_dataset.repeat()
+    dataset = dataset.skip(int(samples * validation_proportion))
 
     dataset = dataset.batch(batch_size)
-    dataset.shuffle(10000)
-    dataset.shuffle(10000)
-    dataset.shuffle(10000)
+    dataset = dataset.shuffle(10000)
+    dataset = dataset.repeat()
 
     return dataset, validation_dataset
 

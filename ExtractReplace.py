@@ -10,7 +10,7 @@ import tensorflow as tf
 from tensorflow import keras
 
 import ErrorClassifier
-from ErrorClassifier import ERROR_TYPES, tokenize_pure_words
+from NeuralNetworkHelper import TESTING_RANGE
 
 
 # ExtractReplace.py
@@ -24,9 +24,6 @@ from ErrorClassifier import ERROR_TYPES, tokenize_pure_words
 # Intended to be used with a neural network later
 
 FILE_NAME = 'train'
-
-
-TESTING_RANGE = (900000, 1000000)
 
 
 def main():

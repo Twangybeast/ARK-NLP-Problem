@@ -2,17 +2,21 @@ import tensorflow as tf
 from tensorflow import keras
 
 from Trainer import FILE_NAME, PATH_REPLACE_DATA, prepare_dataset
-from TokenHelper import tokenize, find_all_delta_from_tokens
 from NNModels import create_nn_model
 
-ENABLE_LOAD_CHECKPOINT = False
+ENABLE_LOAD_CHECKPOINT = True
 ENABLE_SAVE_TFRECORD = False
+
+if ENABLE_SAVE_TFRECORD:
+    from TokenHelper import tokenize, find_all_delta_from_tokens
 
 PATH_CHECKPOINT1 = 'nn1.ckpt'
 PATH_CHECKPOINT2 = 'nn2.ckpt'
 
 PATH_REPLACE_RAW = FILE_NAME+'.replace.original.txt'
 PATH_TFRECORD_REPLACE = FILE_NAME + '1.replace.tfrecord'
+
+
 
 # The search for the best REPLACE neural network
 # Numbered by version
@@ -82,29 +86,38 @@ def train_network1():
         d1 = x['delta1']
         d2 = x['delta2']
 
+        batch_size = tf.gather(tf.shape(start), 0)
+        batch_size = tf.expand_dims(batch_size, axis=0)
+
         # doubles the batch size, with the second half switching the deltas and reversing the label
         start = tf.concat([start, start], axis=0)
         end   = tf.concat([end, end], axis=0)
         delta1 = tf.concat([d1, d2], axis=0)
         delta2 = tf.concat([d2, d1], axis=0)
 
-        y1 = tf.fill(tf.gather(tf.shape(x), 0), 0.)
-        y2 = tf.fill(tf.gather(tf.shape(x), 0), 1.)
-        y = tf.concat(y1, y2, axis=0)
+        y1 = tf.fill(batch_size, 0.)
+        y2 = tf.fill(batch_size, 1.)
+        y = tf.concat([y1, y2], axis=0)
         return {'start': start, 'end': end, 'delta1':delta1, 'delta2':delta2}, y
 
     dataset = tf.data.TFRecordDataset(PATH_TFRECORD_REPLACE)
     dataset = dataset.map(decode, num_parallel_calls=8)
-    dataset = dataset.shuffle(100000, seed=123)
-    dataset = dataset.padded_batch(1024/2, {'start': (None, 300), 'end': (None, None), 'delta1': (None,), 'delta2': (None,)})
-    dataset = dataset.prefetch(1024/2)
+    dataset = dataset.shuffle(10000, seed=123)
+    dataset = dataset.padded_batch(int(1024/4/2), {'start': (None, None), 'end': (None, None), 'delta1': (None,), 'delta2': (None,)})
+    dataset = dataset.prefetch(int(1024/4/2))
     dataset = dataset.map(add_label, num_parallel_calls=8)
 
     # dataset.shuffle(1000, seed=123)
     validation_dataset = dataset.take(10)
+    dataset = dataset.skip(10)
+
+    validation_dataset = validation_dataset.repeat()
+    dataset = dataset.repeat()
 
     # Create the model
     model = create_nn_model('replace1')
+    # run_options = tf.RunOptions(report_tensor_allocations_upon_oom=True)
+
     model.compile(optimizer=tf.train.AdamOptimizer(), loss='binary_crossentropy', metrics=['accuracy'])
 
     print(model.summary())
@@ -115,7 +128,7 @@ def train_network1():
     if ENABLE_LOAD_CHECKPOINT:
         model.load_weights(PATH_CHECKPOINT1)
 
-    model.fit(dataset, steps_per_epoch=50, epochs=200, verbose=2, validation_data=validation_dataset,
+    model.fit(dataset, steps_per_epoch=50 * 4, epochs=200, verbose=2, validation_data=validation_dataset,
               validation_steps=1, callbacks=[cp_callback])
 
 
@@ -143,20 +156,23 @@ def train_network2():
         p1 = x['part1']
         p2 = x['part2']
 
+        batch_size = tf.gather(tf.shape(p1), 0)
+        batch_size = tf.expand_dims(batch_size, axis=0)
+
         # doubles the batch size, with the second half switching the parts and reversing the label
         part1 = tf.concat([p1, p2], axis=0)
         part2 = tf.concat([p2, p1], axis=0)
 
-        y1 = tf.fill(tf.gather(tf.shape(x), 0), 0.)
-        y2 = tf.fill(tf.gather(tf.shape(x), 0), 1.)
-        y = tf.concat(y1, y2, axis=0)
+        y1 = tf.fill(batch_size, 0.)
+        y2 = tf.fill(batch_size, 1.)
+        y = tf.concat([y1, y2], axis=0)
         return {'part1': part1, 'part2': part2}, y
 
     dataset = tf.data.TFRecordDataset(PATH_TFRECORD_REPLACE)
     dataset = dataset.map(decode, num_parallel_calls=8)
     dataset = dataset.shuffle(100000, seed=123)
-    dataset = dataset.padded_batch(1024/2, {'start': (None, 300), 'end': (None, None), 'delta1': (None,), 'delta2': (None,)})
-    dataset = dataset.prefetch(1024/2)
+    dataset = dataset.padded_batch(int(1024/2), {'start': (None, 300), 'end': (None, None), 'delta1': (None,), 'delta2': (None,)})
+    dataset = dataset.prefetch(int(1024/2))
     dataset = dataset.map(add_label, num_parallel_calls=8)
 
     # dataset.shuffle(1000, seed=123)
