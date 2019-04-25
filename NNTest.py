@@ -100,19 +100,27 @@ def train_network1():
         y = tf.concat([y1, y2], axis=0)
         return {'start': start, 'end': end, 'delta1':delta1, 'delta2':delta2}, y
 
+    def decode_dataset(dataset):
+        dataset = dataset.map(decode, num_parallel_calls=8)
+        dataset = dataset.repeat()
+        dataset = dataset.padded_batch(BATCH_SIZE,
+                                       {'start': (None, None), 'end': (None, None), 'delta1': (None,),
+                                        'delta2': (None,)})
+        dataset = dataset.prefetch(int(BATCH_SIZE))
+        dataset = dataset.map(add_label, num_parallel_calls=8)
+        return dataset
+
+
     dataset = tf.data.TFRecordDataset(PATH_TFRECORD_REPLACE)
-    dataset = dataset.map(decode, num_parallel_calls=8)
-    dataset = dataset.shuffle(10000, seed=123)
-    dataset = dataset.padded_batch(int(1024/4/2), {'start': (None, None), 'end': (None, None), 'delta1': (None,), 'delta2': (None,)})
-    dataset = dataset.prefetch(int(1024/4/2))
-    dataset = dataset.map(add_label, num_parallel_calls=8)
+    BATCH_SIZE = int(256/2) # divide by 2 since it doubles while adding labels
+    validation_dataset = dataset.take(BATCH_SIZE * 100)
+    training_dataset = dataset.skip(BATCH_SIZE * 100)
 
-    # dataset.shuffle(1000, seed=123)
-    validation_dataset = dataset.take(10)
-    dataset = dataset.skip(10)
+    validation_dataset = validation_dataset.shuffle(BATCH_SIZE * 100, seed=123)
+    training_dataset = training_dataset.shuffle(10000, seed=123)
 
-    validation_dataset = validation_dataset.repeat()
-    dataset = dataset.repeat()
+    validation_dataset = decode_dataset(validation_dataset)
+    training_dataset = decode_dataset(training_dataset)
 
     # Create the model
     model = create_nn_model('replace1')
@@ -128,7 +136,7 @@ def train_network1():
     if ENABLE_LOAD_CHECKPOINT:
         model.load_weights(PATH_CHECKPOINT1)
 
-    model.fit(dataset, steps_per_epoch=50 * 4, epochs=200, verbose=2, validation_data=validation_dataset,
+    model.fit(training_dataset, steps_per_epoch=50 * 4, epochs=200, verbose=2, validation_data=validation_dataset,
               validation_steps=1, callbacks=[cp_callback])
 
 
