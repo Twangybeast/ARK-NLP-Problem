@@ -6,10 +6,13 @@ import unicodedata
 import numpy as np
 
 import ErrorClassifier
-from TokenHelper import tokenize, tokenize_pure_words
-from NeuralNetworkHelper import PATH_REPLACE_CHECKPOINT, PATH_ARRANGE_CHECKPOINT, FILE_NAME, TESTING_RANGE
+from TokenHelper import tokenize, tokenize_pure_words, find_all_delta_from_tokens, find_delta_from_tokens
+from NeuralNetworkHelper import PATH_ARRANGE_CHECKPOINT, FILE_NAME, TESTING_RANGE
 from NeuralNetworkHelper import tags_to_id
 from NNModels import create_nn_model
+from NNTest import PATH_CHECKPOINT1 as PATH_REPLACE_CHECKPOINT
+
+import tensorflow as tf
 
 
 def main():
@@ -133,7 +136,7 @@ def solve_remove(tokens1, tokens2, tags1, tags2):
 
 def solve_typo(tokens1, tokens2, tags1, tags2):
     # Find the delta
-    d1, d2 = ErrorClassifier.find_delta_from_tokens(tokens1, tokens2)
+    d1, d2 = find_delta_from_tokens(tokens1, tokens2)
 
     w1 = tokenize_pure_words(str(d1))
     w2 = tokenize_pure_words(str(d2))
@@ -173,60 +176,48 @@ def evaluate_average_delta_similarity(delta, start, end):
 
 
 def load_replace_neural_network():
-    model = create_nn_model('replace')
+    model = create_nn_model('replace1')
     model.load_weights(PATH_REPLACE_CHECKPOINT)
     return model
     # return keras.models.load_model('replace.h5')
 
 
 def solve_replace(tokens1, tokens2, tags1, tags2):
-    # Simplest method, simply compare word similarity vectors
+    # No longer needs the tags
     # Find the delta
-    d1, d2, s1, s2 = ErrorClassifier.find_all_delta_from_tokens(tokens1, tokens2)
-    tags1 = tags1.split()
-    tags2 = tags2.split()
+    delta1, delta2, start, end = find_all_delta_from_tokens(tokens1, tokens2)
 
-    tag_map = {}
-    for i in range(len(tokens1)):
-        tag_map[tokens1[i]] = tags1[i]
-    for i in range(len(tokens2)):
-        tag_map[tokens2[i]] = tags2[i]
+    # use the neural network
+    # Convert to word vectors
+    start = np.array(list(map(lambda t: t.vector, start)))
+    end   = np.array(list(map(lambda t: t.vector, end)))
 
-    delta1, delta2, start, end = ErrorClassifier.find_all_delta_from_tokens(tokens1, tokens2)
 
-    # no difference in replacement tags, don't use neural net, use similarities of word vectors
-    if tag_map[delta1[0]] == tag_map[delta2[0]]:
-        return eval_largest(evaluate_average_delta_similarity(delta1[0], start, end),
-                            evaluate_average_delta_similarity(delta2[0], start, end))
-    else:
-        # use the neural network
-        # preprocess the data
-        ids_d1 = list(map(lambda token: tags_to_id[tag_map[token]], delta1))
-        ids_d2 = list(map(lambda token: tags_to_id[tag_map[token]], delta2))
-        ids_st = list(map(lambda token: tags_to_id[tag_map[token]], start))  # start ids
-        ids_en = list(map(lambda token: tags_to_id[tag_map[token]], end))  # end ids
+    assert len(delta1) > 0 and len(delta2) > 0
 
-        if len(ids_st) == 0:
-            ids_st = [0]
-        if len(ids_en) == 0:
-            ids_en = [0]
+    delta1 = delta1[0].vector
+    delta2 = delta2[0].vector
 
-        input_start = ids_st
-        input_en = ids_en
+    vector_length = len(delta1)
 
-        input_d1 = [ids_d1[0]]
-        input_d2 = [ids_d2[0]]
+    # Ensure non-zero length
+    if len(start) == 0:
+        start = [[0.] * vector_length]
+    if len(end) == 0:
+        end = [[0.] * vector_length]
 
-        x1 = [np.array([input_start]), np.array([input_en]), np.array([input_d1])]
-        x2 = [np.array([input_start]), np.array([input_en]), np.array([input_d2])]
+    start = np.reshape(start, (1, len(start), vector_length))
+    end   = np.reshape(end, (1, len(end), vector_length))
+    delta1 = np.reshape(delta1, (1, vector_length))
+    delta2 = np.reshape(delta2, (1, vector_length))
 
-        y1 = replace_model.predict(x1)
-        y2 = replace_model.predict(x2)
+    x = [start, end, delta1, delta2]
+    y = replace_model.predict(x, steps=1)
 
-        assert y1.size == 1
-        assert y2.size == 1
+    assert y.size == 1
 
-        return eval_largest(y1.item(), y2.item())
+    # 0 means the first one is better
+    return eval_largest(0.5, y.item())
 
 
 def solve(tokens1, tokens2, error_type, tags1, tags2):

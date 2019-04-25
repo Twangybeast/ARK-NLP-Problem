@@ -1,7 +1,7 @@
 import tensorflow as tf
 from tensorflow import keras
 
-from Trainer import tags_to_id
+from NeuralNetworkHelper import tags_to_id
 
 
 def create_replace_nn_model():
