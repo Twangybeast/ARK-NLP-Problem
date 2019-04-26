@@ -12,7 +12,8 @@ from NeuralNetworkHelper import tags_to_id
 from NNModels import create_nn_model
 from NNTest import PATH_CHECKPOINT1 as PATH_REPLACE_CHECKPOINT
 
-import tensorflow as tf
+ENABLE_SAVE_OUTPUT = False
+PATH_TEST_OUT = 'part1.txt'
 
 
 def main():
@@ -27,6 +28,8 @@ def main():
     replace_model = load_replace_neural_network()
     arrange_model = load_arrange_neural_network()
 
+    if ENABLE_SAVE_OUTPUT:
+        file_out = open(PATH_TEST_OUT, 'w')
     with open(FILE_NAME + '.txt', encoding='utf-8') as file, open(FILE_NAME + '.spacy.txt') as file_tags:
         progress = 0
         start_time = time.time()
@@ -54,6 +57,9 @@ def main():
             if scrambled:
                 answer = 1 - answer
 
+            if ENABLE_SAVE_OUTPUT:
+                file_out.write('{}\n'.format('A' if answer == 0 else 'B'))
+
             prediction_freq[answer] += 1
             if answer == 0:
                 error_correct[error_type] += 1
@@ -69,6 +75,9 @@ def main():
                               words_processed / (time.time() - start_time),
                               (lines_processed / (time.time() - start_time)))
                       , end='')
+    if ENABLE_SAVE_OUTPUT:
+        file_out.flush()
+        file_out.close()
     # Returns the frequency of predicting the first or second one
     print(prediction_freq)
     # Prints the number of lines which predicted the first part as the original (same as the number of correct
