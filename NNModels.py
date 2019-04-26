@@ -53,6 +53,7 @@ def create_arrange_nn_model():
 
 
 def create_replace1_nn_model():
+    BATCH_SIZE = int(256 / 2) # TODO acquire this variable automatically
     input_start = keras.layers.Input(shape=(None, 300), dtype=tf.float32, name='start')
     input_end = keras.layers.Input(shape=(None, 300), dtype=tf.float32, name='end')
     input_delta1 = keras.layers.Input(shape=(300,), dtype=tf.float32, name='delta1')
@@ -70,9 +71,11 @@ def create_replace1_nn_model():
     x_d2 = dense_reduce_dim(input_delta2)
 
     x_s = keras.layers.CuDNNLSTM(20, return_sequences=True)(x_s)
+    x_s = keras.layers.Dropout(0.1, noise_shape=(BATCH_SIZE * 2, 1, 20))(x_s)
     x_s = keras.layers.CuDNNLSTM(20)(x_s)
 
     x_e = keras.layers.CuDNNLSTM(20, return_sequences=True, go_backwards=True)(x_e)
+    x_e = keras.layers.Dropout(0.1, noise_shape=(BATCH_SIZE * 2, 1, 20))(x_e)
     x_e = keras.layers.CuDNNLSTM(20)(x_e)
 
     x_se = keras.layers.concatenate([x_s, x_e])
@@ -84,7 +87,9 @@ def create_replace1_nn_model():
 
     x = keras.layers.concatenate([x_se, x_d1, x_d2])
     x = keras.layers.Dense(30, activation=tf.nn.tanh)(x)
+    # x = keras.layers.Dropout(0.1)(x)
     x = keras.layers.Dense(20, activation=tf.nn.tanh)(x)
+    # x = keras.layers.Dropout(0.1)(x)
     x = keras.layers.Dense(1, activation=tf.nn.sigmoid)(x)
 
     output = x
@@ -113,7 +118,7 @@ def create_replace2_nn_model():
     x2 = lstm1(x2)
 
     # merge layer
-    x = keras.layers.concatenate([x1, x2], axis=-2)
+    x = keras.layers.concatenate([x1, x2])
 
     # LSTMs with merged inputs
     x = keras.layers.CuDNNLSTM(20)(x)

@@ -1,17 +1,17 @@
 import tensorflow as tf
 from tensorflow import keras
 
-from Trainer import FILE_NAME, PATH_REPLACE_DATA, prepare_dataset
+from NeuralNetworkHelper import FILE_NAME
 from NNModels import create_nn_model
 
-ENABLE_LOAD_CHECKPOINT = True
+ENABLE_LOAD_CHECKPOINT = False
 ENABLE_SAVE_TFRECORD = False
 
 if ENABLE_SAVE_TFRECORD:
     from TokenHelper import tokenize, find_all_delta_from_tokens
 
-PATH_CHECKPOINT1 = 'nn1.ckpt'
-PATH_CHECKPOINT2 = 'nn2.ckpt'
+PATH_CHECKPOINT1 = 'checkpoints/nn1_1.ckpt'
+PATH_CHECKPOINT2 = 'checkpoints/nn2.ckpt'
 
 PATH_REPLACE_RAW = FILE_NAME+'.replace.original.txt'
 PATH_TFRECORD_REPLACE = FILE_NAME + '1.replace.tfrecord'
@@ -24,6 +24,7 @@ PATH_TFRECORD_REPLACE = FILE_NAME + '1.replace.tfrecord'
 
 def main():
     train_network1()
+    # train_network2()
 
 
 def train_network1():
@@ -137,7 +138,7 @@ def train_network1():
         model.load_weights(PATH_CHECKPOINT1)
 
     model.fit(training_dataset, steps_per_epoch=50 * 4, epochs=200, verbose=2, validation_data=validation_dataset,
-              validation_steps=1, callbacks=[cp_callback])
+              validation_steps=10, callbacks=[cp_callback])
 
 
 def train_network2():
@@ -152,10 +153,10 @@ def train_network2():
         }
         context, sequence = tf.io.parse_single_sequence_example(serialized=serialized,
                                                 sequence_features=sequence_features, context_features=context_features)
-        start = tf.sparse.to_dense(sequence['s'])
-        end   = tf.sparse.to_dense(sequence['e'])
-        delta1 = tf.expand_dims(sequence['d1'], axis=0)
-        delta2 = tf.expand_dims(sequence['d2'], axis=0)
+        start = tf.reshape(tf.sparse.to_dense(sequence['s']), [-1, 300])
+        end   = tf.reshape(tf.sparse.to_dense(sequence['e']), [-1, 300])
+        delta1 = tf.expand_dims(context['d1'], axis=0)
+        delta2 = tf.expand_dims(context['d2'], axis=0)
 
         part1 = tf.concat([start, delta1, end], axis=0)
         part2 = tf.concat([start, delta2, end], axis=0)
@@ -176,15 +177,24 @@ def train_network2():
         y = tf.concat([y1, y2], axis=0)
         return {'part1': part1, 'part2': part2}, y
 
+    def decode_dataset(dataset):
+        dataset = dataset.map(decode, num_parallel_calls=8)
+        dataset = dataset.repeat()
+        dataset = dataset.padded_batch(BATCH_SIZE, {'part1': (None, 300), 'part2': (None, 300)})
+        dataset = dataset.prefetch(BATCH_SIZE)
+        dataset = dataset.map(add_label, num_parallel_calls=8)
+        return dataset
     dataset = tf.data.TFRecordDataset(PATH_TFRECORD_REPLACE)
-    dataset = dataset.map(decode, num_parallel_calls=8)
-    dataset = dataset.shuffle(100000, seed=123)
-    dataset = dataset.padded_batch(int(1024/2), {'start': (None, 300), 'end': (None, None), 'delta1': (None,), 'delta2': (None,)})
-    dataset = dataset.prefetch(int(1024/2))
-    dataset = dataset.map(add_label, num_parallel_calls=8)
+    BATCH_SIZE = int(256/2) # divide by 2 since it doubles while adding labels
 
-    # dataset.shuffle(1000, seed=123)
-    validation_dataset = dataset.take(10)
+    validation_dataset = dataset.take(BATCH_SIZE * 100)
+    training_dataset = dataset.skip(BATCH_SIZE * 100)
+
+    validation_dataset = validation_dataset.shuffle(BATCH_SIZE * 100, seed=123)
+    training_dataset = training_dataset.shuffle(10000, seed=123)
+
+    validation_dataset = decode_dataset(validation_dataset)
+    training_dataset = decode_dataset(training_dataset)
 
     # Create the model
     model = create_nn_model('replace2')
@@ -198,7 +208,7 @@ def train_network2():
     if ENABLE_LOAD_CHECKPOINT:
         model.load_weights(PATH_CHECKPOINT2)
 
-    model.fit(dataset, steps_per_epoch=50, epochs=200, verbose=2, validation_data=validation_dataset,
+    model.fit(training_dataset, steps_per_epoch=50 * 4, epochs=200, verbose=2, validation_data=validation_dataset,
               validation_steps=1, callbacks=[cp_callback])
 
 
