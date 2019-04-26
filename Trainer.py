@@ -88,7 +88,7 @@ def train_replace_nn():
         max_start = len(max(train_start, key=len))
         max_end = len(max(train_end, key=len))
         samples = len(train_delta1)
-        with open(PATH_REPLACE_DATA, 'x') as file_replace:
+        with open(PATH_REPLACE_DATA, 'w') as file_replace:
             file_replace.write('{} {} {}\n'.format(max_start, max_end, samples))
             for i in range(samples):
                 file_replace.write(' '.join(map(str, train_start[i])) + '\t')
@@ -147,7 +147,7 @@ def train_arrange_nn():
         assert len(train_arrange_x) == len(train_arrange_y)
         max_length = len(max(train_arrange_x, key=len))
         samples = len(train_arrange_x)
-        with open(PATH_ARRANGE_DATA, 'x') as file_arrange:
+        with open(PATH_ARRANGE_DATA, 'w') as file_arrange:
             file_arrange.write('{} {}\n'.format(max_length, samples))
             for i in range(samples):
                 file_arrange.write(' '.join(map(str, train_arrange_x[i])) + '\t')

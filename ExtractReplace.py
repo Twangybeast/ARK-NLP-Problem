@@ -10,7 +10,7 @@ import tensorflow as tf
 from tensorflow import keras
 
 import ErrorClassifier
-from NeuralNetworkHelper import TESTING_RANGE
+from NeuralNetworkHelper import TESTING_RANGE, FILE_NAME
 
 
 # ExtractReplace.py
@@ -22,8 +22,6 @@ from NeuralNetworkHelper import TESTING_RANGE
 # delta1: the word in part1 that is replaced by delta2 in part2
 # delta2: opposite of delta1
 # Intended to be used with a neural network later
-
-FILE_NAME = 'train'
 
 
 def main():
@@ -62,7 +60,7 @@ def train_replace_nn():
     # saves the data to a file
     assert len(train_delta1) == len(train_delta2) == len(train_start) == len(train_end)
     samples = len(train_delta1)
-    with open(FILE_NAME+'.replace.original.txt', 'x', encoding='utf-8') as file_replace:
+    with open(FILE_NAME+'.replace.original.txt', 'w', encoding='utf-8') as file_replace:
         file_replace.write('{}\n'.format(samples))
         for i in range(samples):
             file_replace.write(train_start[i] + '\t')

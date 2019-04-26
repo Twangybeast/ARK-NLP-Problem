@@ -6,7 +6,7 @@ nlp = spacy.load('en_core_web_lg', disable=['parser', 'ner'])
 
 
 # Converts the entire text file into a spacy file
-src_name = 'text'
+src_name = 'labeled_test'
 parts1 = []
 parts2 = []
 print('Reading input...')
@@ -34,7 +34,7 @@ doc1 = nlp.pipe(parts1, batch_size=1000)
 doc2 = nlp.pipe(parts2, batch_size=1000)
 
 print('Writing output...')
-with open(src_name + '.spacy.txt', 'x') as file:
+with open(src_name + '.spacy.txt', 'w') as file:
     start_time = time.time()
     progress = 0
     words_count = 0

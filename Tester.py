@@ -15,6 +15,8 @@ from NNTest import PATH_CHECKPOINT1 as PATH_REPLACE_CHECKPOINT
 ENABLE_SAVE_OUTPUT = False
 PATH_TEST_OUT = 'part1.txt'
 
+ENABLE_USE_TESTING_RANGE = True
+
 
 def main():
     global word_freqs, replace_model, arrange_model
@@ -38,7 +40,7 @@ def main():
         for line in file:
             progress += 1
             line_tag = file_tags.readline().strip()
-            if not (TESTING_RANGE[0] < progress <= TESTING_RANGE[1]):
+            if ENABLE_USE_TESTING_RANGE and not (TESTING_RANGE[0] < progress <= TESTING_RANGE[1]):
                 continue
 
             line = line.strip()

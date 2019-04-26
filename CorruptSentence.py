@@ -80,7 +80,7 @@ def choose_errors():
 
 def main():
     random.seed(123) # Consistency across runtimes
-    with open(PATH_IN, encoding='utf-8') as file_in, open(PATH_OUT, 'x', encoding='utf-8') as file_out:
+    with open(PATH_IN, encoding='utf-8') as file_in, open(PATH_OUT, 'w', encoding='utf-8') as file_out:
         progress = 0
         start_time = time.time()
         lines_processed = 0

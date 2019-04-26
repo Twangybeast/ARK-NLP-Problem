@@ -2,8 +2,8 @@
 # Some basic constants that may be configured
 FILE_NAME = 'train'
 
-PATH_REPLACE_CHECKPOINT = 'checkpoints/%s_replace_w0_d1.ckpt' % FILE_NAME
-PATH_ARRANGE_CHECKPOINT = 'checkpoints/%s_arrange_w1_d0.ckpt' % FILE_NAME
+PATH_REPLACE_CHECKPOINT = 'checkpoints/train_replace_w0_d1.ckpt'
+PATH_ARRANGE_CHECKPOINT = 'checkpoints/train_arrange_w1_d0.ckpt'
 
 # Range of train.txt that is the testing set. Trainer skips these, Tester only works on these line
 TESTING_RANGE = (900000, 1000000)
