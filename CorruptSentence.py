@@ -11,13 +11,14 @@ PATH_OUT = 'part2.txt'
 def corrupt_arrange(original):
     # pick 2 random tokens and scramble them
     tokens = original.split()
-    while True:
+    if len(tokens) <= 1:
+        return original
+    for i in range(1000):
         i1 = random.randint(0, len(tokens) - 1)
         i2 = random.randint(0, len(tokens) - 1)
         # Make sure they aren't the same
         if tokens[i1] != tokens[i2]:
             break
-    # swap them
     temp_token = tokens[i1]
     tokens[i1] = tokens[i2]
     tokens[i2] = temp_token
@@ -41,10 +42,12 @@ def corrupt_remove(original):
 
 def corrupt_typo(original):
     tokens = original.split()
-    i = random.randint(0, len(tokens) - 1)
     # switch some letters up in that word
-    word = tokens[i]
-    while True:
+    if len(original) == 1:
+        return original
+    for i in range(1000):
+        i = random.randint(0, len(tokens) - 1)
+        word = list(tokens[i])
         c1 = random.randint(0, len(word) - 1)
         c2 = random.randint(0, len(word) - 1)
         if word[c1] != word[c2]:
@@ -52,31 +55,41 @@ def corrupt_typo(original):
     temp = word[c1]
     word[c1] = word[c2]
     word[c2] = temp
-    tokens[i] = word
+    tokens[i] = ''.join(word)
     return ' '.join(tokens)
 
 
 def corrupt_replace(original):
     tokens = original.split()
-    word = random.choice(vocab)
-    while True:
-        i = random.randint(0, len(tokens - 1))
+    for i in range(1000):
+        word = random.choice(vocab)
+        i = random.randint(0, len(tokens) - 1)
         if tokens[i] != word:
             break
     tokens = tokens[:i] + [word] + tokens[i+1:]
     return ' '.join(tokens)
 
 
-def choose_errors():
+def choose_errors(original):
     while True:
         # Choose 2 random error types to use
-        error_choices = random.choice(ErrorClassifier.ERROR_TYPES, k=2)
+        error_choices = random.sample(ErrorClassifier.ERROR_TYPES, k=2)
 
         # prevent add & remove from being the decided errors, they might cancel out
         if not ('ADD' in error_choices and 'REMOVE' in error_choices):
             break
+    if len(original.split()) <= 1:
+        return ['REPLACE', 'ADD']
     return error_choices
 
+
+def corrupt_text(original):
+    corrupted = original
+
+    error_choices = choose_errors(original)
+    for error_type in error_choices:
+        corrupted = globals()['corrupt_%s' % error_type.lower()](corrupted)
+    return corrupted
 
 def main():
     random.seed(123) # Consistency across runtimes
@@ -91,11 +104,14 @@ def main():
             line = unicodedata.normalize('NFKD', line)
             p1, p2 = line.split('\t')
 
-            corrupted = p1
 
-            error_choices = choose_errors()
-            for error_type in error_choices:
-                corrupted = globals()['corrupt_%s' % error_type.lower()](corrupted)
+            while True:
+                corrupted = corrupt_text(p1)
+                if p1.strip() == corrupted.strip():
+                    continue
+                if p2.strip() == corrupted.strip():
+                    continue
+                break
 
             file_out.write("{}\t{}\n".format(p1, corrupted))
 
